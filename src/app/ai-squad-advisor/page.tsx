@@ -11,6 +11,20 @@ export default function AiSquadAdvisorPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [selectedImageName, setSelectedImageName] = useState("");
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+
+  function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setSelectedImageName(file.name);
+    setImagePreviewUrl(URL.createObjectURL(file));
+  }
+
   async function handleAnalyzeClick() {
     try {
       setIsLoading(true);
@@ -79,11 +93,39 @@ export default function AiSquadAdvisorPage() {
                   Upload Squad Screenshot
                 </label>
 
-                <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-white/20 bg-black/30 text-center text-sm text-slate-400">
-                  Drag & drop image here
-                  <br />
-                  or choose file
-                </div>
+                <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-white/20 bg-black/30 p-4 text-center text-sm text-slate-400 transition hover:border-[#00FF9A]/60 hover:bg-[#00FF9A]/5">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+
+                  {imagePreviewUrl ? (
+                    <div className="space-y-3">
+                      <img
+                        src={imagePreviewUrl}
+                        alt="Selected squad preview"
+                        className="mx-auto max-h-40 rounded-lg border border-white/10 object-contain"
+                      />
+
+                      <p className="break-all text-xs text-slate-300">
+                        {selectedImageName}
+                      </p>
+
+                      <p className="text-xs text-[#00FF9A]">
+                        Click here to change image
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p>Tap here to choose squad image</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        PNG, JPG, or screenshot from your FC squad screen
+                      </p>
+                    </div>
+                  )}
+                </label>
               </div>
 
               <div>
