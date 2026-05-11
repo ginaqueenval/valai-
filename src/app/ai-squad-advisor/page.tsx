@@ -4,15 +4,27 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import type { ValbriSquadAdvisorResult } from "@/lib/ai/valbriSquadAdvisorSchema";
+import type {
+  DivisionLevel,
+  Goal,
+  Platform,
+  ValbriSquadAdvisorResult,
+} from "@/lib/ai/valbriSquadAdvisorSchema";
 
 export default function AiSquadAdvisorPage() {
   const [result, setResult] = useState<ValbriSquadAdvisorResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [selectedImageName, setSelectedImageName] = useState("");
   const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+
+  const [platform, setPlatform] = useState<Platform>("PlayStation");
+  const [divisionLevel, setDivisionLevel] =
+    useState<DivisionLevel>("Division 7-5");
+  const [goal, setGoal] = useState<Goal>("Best Overall Improvement");
+  const [currentTactics, setCurrentTactics] = useState("");
 
   function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -21,6 +33,7 @@ export default function AiSquadAdvisorPage() {
       return;
     }
 
+    setSelectedImageFile(file);
     setSelectedImageName(file.name);
     setImagePreviewUrl(URL.createObjectURL(file));
   }
@@ -30,8 +43,21 @@ export default function AiSquadAdvisorPage() {
       setIsLoading(true);
       setErrorMessage("");
 
+      if (!selectedImageFile) {
+        throw new Error("Please upload a squad screenshot first.");
+      }
+
+      const formData = new FormData();
+
+      formData.append("squadImage", selectedImageFile);
+      formData.append("platform", platform);
+      formData.append("divisionLevel", divisionLevel);
+      formData.append("goal", goal);
+      formData.append("currentTactics", currentTactics);
+
       const response = await fetch("/api/ai/squad-analysis", {
         method: "POST",
+        body: formData,
       });
 
       if (!response.ok) {
@@ -83,8 +109,8 @@ export default function AiSquadAdvisorPage() {
             <h2 className="text-xl font-semibold">Analyze Your Squad</h2>
 
             <p className="mt-2 text-sm text-slate-400">
-              This is still the MVP test version. The button now calls our
-              internal API route, but OpenAI is not connected yet.
+              This MVP now sends your uploaded image and selected inputs to our
+              internal API route. OpenAI connection comes next.
             </p>
 
             <div className="mt-6 space-y-5">
@@ -134,11 +160,16 @@ export default function AiSquadAdvisorPage() {
                 </label>
 
                 <div className="grid grid-cols-3 gap-2">
-                  {["PlayStation", "Xbox", "PC"].map((item) => (
+                  {(["PlayStation", "Xbox", "PC"] as Platform[]).map((item) => (
                     <button
                       key={item}
                       type="button"
-                      className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300"
+                      onClick={() => setPlatform(item)}
+                      className={
+                        platform === item
+                          ? "rounded-xl border border-[#00FF9A] bg-[#00FF9A]/10 px-3 py-2 text-sm font-semibold text-[#00FF9A]"
+                          : "rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300"
+                      }
                     >
                       {item}
                     </button>
@@ -151,7 +182,13 @@ export default function AiSquadAdvisorPage() {
                   Division Rivals Level
                 </label>
 
-                <select className="w-full rounded-xl border border-white/10 bg-[#0B1220] px-3 py-3 text-sm text-white">
+                <select
+                  value={divisionLevel}
+                  onChange={(event) =>
+                    setDivisionLevel(event.target.value as DivisionLevel)
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-[#0B1220] px-3 py-3 text-sm text-white"
+                >
                   <option>Division 10-8</option>
                   <option>Division 7-5</option>
                   <option>Division 4-2</option>
@@ -165,7 +202,11 @@ export default function AiSquadAdvisorPage() {
                   Main Goal
                 </label>
 
-                <select className="w-full rounded-xl border border-white/10 bg-[#0B1220] px-3 py-3 text-sm text-white">
+                <select
+                  value={goal}
+                  onChange={(event) => setGoal(event.target.value as Goal)}
+                  className="w-full rounded-xl border border-white/10 bg-[#0B1220] px-3 py-3 text-sm text-white"
+                >
                   <option>Best Overall Improvement</option>
                   <option>Better Attack</option>
                   <option>Better Defense</option>
@@ -180,6 +221,8 @@ export default function AiSquadAdvisorPage() {
                 </label>
 
                 <textarea
+                  value={currentTactics}
+                  onChange={(event) => setCurrentTactics(event.target.value)}
                   className="min-h-24 w-full rounded-xl border border-white/10 bg-[#0B1220] px-3 py-3 text-sm text-white placeholder:text-slate-500"
                   placeholder="Example: 4-3-3(4), Balanced, 58 depth, Direct Passing"
                 />
@@ -210,12 +253,12 @@ export default function AiSquadAdvisorPage() {
                 </p>
 
                 <h2 className="mt-3 text-2xl font-bold">
-                  Click “Analyze My Squad”
+                  Upload a squad and click “Analyze My Squad”
                 </h2>
 
                 <p className="mt-3 text-slate-400">
-                  For now, the button will load a mock AI result from our test
-                  API route. Later, this same flow will connect to OpenAI.
+                  For now, the API still returns a mock AI result. In the next
+                  step, we will connect this same request flow to OpenAI.
                 </p>
               </div>
             ) : (
