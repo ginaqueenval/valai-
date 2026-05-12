@@ -2,7 +2,7 @@
 
 "use client";
 
-import type { ReactNode } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import { useState } from "react";
 import type {
   DivisionLevel,
@@ -26,7 +26,7 @@ export default function AiSquadAdvisorPage() {
   const [goal, setGoal] = useState<Goal>("Best Overall Improvement");
   const [currentTactics, setCurrentTactics] = useState("");
 
-  function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -36,6 +36,7 @@ export default function AiSquadAdvisorPage() {
     setSelectedImageFile(file);
     setSelectedImageName(file.name);
     setImagePreviewUrl(URL.createObjectURL(file));
+    setErrorMessage("");
   }
 
   async function handleAnalyzeClick() {
@@ -109,22 +110,26 @@ export default function AiSquadAdvisorPage() {
             <h2 className="text-xl font-semibold">Analyze Your Squad</h2>
 
             <p className="mt-2 text-sm text-slate-400">
-              This MVP now sends your uploaded image and selected inputs to our
-              internal API route. OpenAI connection comes next.
+              Upload test version V2. This version has a real image picker and
+              sends your image with the selected inputs to the API route.
             </p>
 
             <div className="mt-6 space-y-5">
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <p className="mb-2 block text-sm font-medium">
                   Upload Squad Screenshot
-                </label>
+                </p>
 
-                <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-white/20 bg-black/30 p-4 text-center text-sm text-slate-400 transition hover:border-[#00FF9A]/60 hover:bg-[#00FF9A]/5">
+                <label
+                  htmlFor="squad-image-upload"
+                  className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-white/20 bg-black/30 p-4 text-center text-sm text-slate-400 transition hover:border-[#00FF9A]/60 hover:bg-[#00FF9A]/5"
+                >
                   <input
+                    id="squad-image-upload"
                     type="file"
                     accept="image/*"
                     onChange={handleImageChange}
-                    className="hidden"
+                    className="sr-only"
                   />
 
                   {imagePreviewUrl ? (
@@ -140,12 +145,15 @@ export default function AiSquadAdvisorPage() {
                       </p>
 
                       <p className="text-xs text-[#00FF9A]">
-                        Click here to change image
+                        Tap here to change image
                       </p>
                     </div>
                   ) : (
                     <div>
-                      <p>Tap here to choose squad image</p>
+                      <p className="font-semibold text-slate-200">
+                        Tap here to choose squad image
+                      </p>
+
                       <p className="mt-1 text-xs text-slate-500">
                         PNG, JPG, or screenshot from your FC squad screen
                       </p>
