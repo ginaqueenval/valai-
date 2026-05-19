@@ -19,15 +19,20 @@ export async function GET() {
       );
     }
 
-    const response = await openai.responses.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
-      input:
-        "Say exactly this sentence: Valai OpenAI connection is working.",
+      messages: [
+        {
+          role: "user",
+          content:
+            "Say exactly this sentence: Valai OpenAI connection is working.",
+        },
+      ],
     });
 
     return NextResponse.json({
       success: true,
-      message: response.output_text,
+      message: response.choices[0]?.message?.content ?? "",
     });
   } catch (error) {
     return NextResponse.json(
