@@ -61,22 +61,26 @@ export async function POST(request: Request) {
       "Analyze the attached FC squad screenshot. Return only valid JSON that matches the schema in your instructions.",
     ].join("\n");
 
-    const response = await openai.responses.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
-      instructions: squadAdvisorMasterPrompt,
-      max_output_tokens: 4000,
-      input: [
+      max_tokens: 4000,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: squadAdvisorMasterPrompt },
         {
           role: "user",
           content: [
-            { type: "input_text", text: userText },
-            { type: "input_image", image_url: dataUrl, detail: "high" },
+            { type: "text", text: userText },
+            {
+              type: "image_url",
+              image_url: { url: dataUrl, detail: "high" },
+            },
           ],
         },
       ],
     });
 
-    const rawText = response.output_text?.trim() ?? "";
+    const rawText = response.choices[0]?.message?.content?.trim() ?? "";
     if (!rawText) {
       return NextResponse.json(
         { success: false, error: "Empty response from OpenAI." },
