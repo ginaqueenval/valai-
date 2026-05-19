@@ -1,6 +1,6 @@
 // src/app/api/ai/squad-analysis/route.ts
 
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import { squadAdvisorMasterPrompt } from "@/lib/ai/squadAdvisorMasterPrompt";
 import type { ValbriSquadAdvisorResult } from "@/lib/ai/valbriSquadAdvisorSchema";
@@ -8,7 +8,7 @@ import type { ValbriSquadAdvisorResult } from "@/lib/ai/valbriSquadAdvisorSchema
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 function stripCodeFences(text: string): string {
   const trimmed = text.trim();
@@ -17,9 +17,9 @@ function stripCodeFences(text: string): string {
 }
 
 export async function POST(request: Request) {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
-      { success: false, error: "OPENAI_API_KEY is missing." },
+      { success: false, error: "GEMINI_API_KEY is missing." },
       { status: 500 }
     );
   }
@@ -50,7 +50,6 @@ export async function POST(request: Request) {
     const arrayBuffer = await squadImage.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString("base64");
     const mimeType = squadImage.type || "image/png";
-    const dataUrl = `data:${mimeType};base64,${base64}`;
 
     const userText = [
       `Platform: ${platform ?? "unknown"}`,
@@ -58,32 +57,31 @@ export async function POST(request: Request) {
       `Main Goal: ${goal ?? "unknown"}`,
       `Current Tactics: ${currentTactics && String(currentTactics).trim().length > 0 ? currentTactics : "not provided"}`,
       "",
-      "Analyze the attached FC squad screenshot. Return only valid JSON that matches the schema in your instructions.",
+      "Analyze the attached FC squad screenshot. Return only valid JSON that matches the schema in your system instructions.",
     ].join("\n");
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      max_tokens: 4000,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: squadAdvisorMasterPrompt },
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
         {
           role: "user",
-          content: [
-            { type: "text", text: userText },
-            {
-              type: "image_url",
-              image_url: { url: dataUrl, detail: "high" },
-            },
+          parts: [
+            { text: userText },
+            { inlineData: { mimeType, data: base64 } },
           ],
         },
       ],
+      config: {
+        systemInstruction: squadAdvisorMasterPrompt,
+        responseMimeType: "application/json",
+        maxOutputTokens: 4000,
+      },
     });
 
-    const rawText = response.choices[0]?.message?.content?.trim() ?? "";
+    const rawText = (response.text ?? "").trim();
     if (!rawText) {
       return NextResponse.json(
-        { success: false, error: "Empty response from OpenAI." },
+        { success: false, error: "Empty response from Gemini." },
         { status: 502 }
       );
     }
@@ -106,7 +104,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      mode: "openai",
+      mode: "gemini",
       result: parsed,
     });
   } catch (error) {
