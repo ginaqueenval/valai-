@@ -61,14 +61,13 @@ export default function AiSquadAdvisorPage() {
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error("The analysis request failed.");
-      }
+      const data = await response.json().catch(() => null);
 
-      const data = await response.json();
-
-      if (!data.success || !data.result) {
-        throw new Error("The API did not return a valid result.");
+      if (!response.ok || !data?.success || !data?.result) {
+        const apiError = data?.error ? String(data.error) : null;
+        throw new Error(
+          apiError ?? `Analysis request failed (HTTP ${response.status}).`
+        );
       }
 
       setResult(data.result);
