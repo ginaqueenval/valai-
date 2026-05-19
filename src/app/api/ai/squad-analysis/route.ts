@@ -74,14 +74,20 @@ export async function POST(request: Request) {
       config: {
         systemInstruction: squadAdvisorMasterPrompt,
         responseMimeType: "application/json",
-        maxOutputTokens: 4000,
+        maxOutputTokens: 16000,
+        thinkingConfig: { thinkingBudget: 0 },
       },
     });
 
     const rawText = (response.text ?? "").trim();
+    const finishReason = response.candidates?.[0]?.finishReason;
+
     if (!rawText) {
       return NextResponse.json(
-        { success: false, error: "Empty response from Gemini." },
+        {
+          success: false,
+          error: `Empty response from Gemini (finishReason: ${finishReason ?? "unknown"}).`,
+        },
         { status: 502 }
       );
     }
@@ -92,10 +98,11 @@ export async function POST(request: Request) {
     try {
       parsed = JSON.parse(cleaned);
     } catch {
+      const snippet = rawText.slice(0, 300);
       return NextResponse.json(
         {
           success: false,
-          error: "Could not parse AI response as JSON.",
+          error: `Could not parse AI response as JSON (finishReason: ${finishReason ?? "unknown"}). Raw start: ${snippet}`,
           raw: rawText,
         },
         { status: 502 }
