@@ -148,32 +148,18 @@ body {
 }
 
 /* ===== Command Center responsive grid =====
- * Below 760px (effective viewport, including page zoom): stack the
- * three columns vertically with the squad canvas first so the image
- * stays the centerpiece even on phones with high page zoom.
- * 760–1100px: tighter sidebars driven by vw so they shrink with zoom.
- * 1100px+: comfortable fixed widths. */
+ * Always 3 columns — never stack — so the user sees the full tactical
+ * command center at any landscape viewport. Sidebar widths shrink with
+ * the viewport via clamp() so the squad image keeps a usable share. */
 
 .cc-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns:
+    minmax(0, clamp(118px, 18vw, 260px))
+    minmax(0, 1fr)
+    minmax(0, clamp(132px, 21vw, 300px));
+  gap: clamp(4px, 0.6vw, 10px);
   min-height: calc(100dvh - 56px);
-}
-
-.cc-grid > :nth-child(2) { order: 0; }   /* center first on mobile */
-.cc-grid > :nth-child(1) { order: 1; }
-.cc-grid > :nth-child(3) { order: 2; }
-
-@media (min-width: 760px) {
-  .cc-grid {
-    grid-template-columns:
-      minmax(0, clamp(160px, 22vw, 280px))
-      minmax(220px, 1fr)
-      minmax(0, clamp(180px, 24vw, 320px));
-  }
-  .cc-grid > :nth-child(1) { order: 0; }
-  .cc-grid > :nth-child(2) { order: 0; }
-  .cc-grid > :nth-child(3) { order: 0; }
 }
 
 @media (min-width: 1280px) {
@@ -182,7 +168,23 @@ body {
       minmax(0, 260px)
       minmax(0, 1fr)
       minmax(0, 300px);
+    gap: 12px;
   }
+}
+
+/* Scale dashboard text + spacing at narrow viewports.
+ * Tailwind's text-xs / text-sm / text-base use rem; setting font-size
+ * on the grid scales them. Arbitrary text-[Npx] don't scale, but the
+ * dashboard mostly uses rem-based utilities. */
+.cc-grid {
+  font-size: clamp(11px, 1.05vw, 14px);
+}
+
+/* Tighter panel padding when the viewport is squeezed */
+@media (max-width: 900px) {
+  .cc-grid .cc-pad { padding: 8px; }
+  .cc-grid .cc-pad-y { padding-top: 6px; padding-bottom: 6px; }
+  .cc-grid h3 { font-size: 0.8rem; }
 }
 
 /* Telemetry meters: prefer fluid sizing at narrow viewports */
