@@ -23,6 +23,17 @@ export type FixType =
   | "squad_upgrade"
   | "tactic_or_upgrade";
 
+export type PlayerCalloutSeverity = "info" | "warning" | "critical";
+
+export type PlayerCallout = {
+  position: string;
+  bbox: { x: number; y: number; w: number; h: number };
+  side: "left" | "right";
+  severity: PlayerCalloutSeverity;
+  label: string;
+  note: string;
+};
+
 export type SquadAdvisorInput = {
   squadImage?: File | null;
   platform: Platform;
@@ -126,6 +137,8 @@ export type ValbriSquadAdvisorResult = {
       }>;
     };
   };
+
+  playerCallouts?: PlayerCallout[];
 
   finalCoachNote: string;
 };

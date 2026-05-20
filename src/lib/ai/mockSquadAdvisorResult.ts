@@ -220,6 +220,41 @@ export const mockSquadAdvisorResult: ValbriSquadAdvisorResult = {
     },
   },
 
+  playerCallouts: [
+    {
+      position: "RB",
+      bbox: { x: 0.66, y: 0.5, w: 0.12, h: 0.18 },
+      side: "right",
+      severity: "critical",
+      label: "PERFORMANCE ALERT",
+      note: "Defensive position stats below target threshold.",
+    },
+    {
+      position: "RW",
+      bbox: { x: 0.66, y: 0.12, w: 0.12, h: 0.18 },
+      side: "right",
+      severity: "warning",
+      label: "FORM PERFORMANCE",
+      note: "High output, but chemistry link weakens the right flank.",
+    },
+    {
+      position: "ST",
+      bbox: { x: 0.43, y: 0.05, w: 0.12, h: 0.18 },
+      side: "left",
+      severity: "info",
+      label: "SYNERGY TARGET",
+      note: "Lowest-rated link with strikers — consider a more clinical profile.",
+    },
+    {
+      position: "CAM",
+      bbox: { x: 0.43, y: 0.27, w: 0.12, h: 0.18 },
+      side: "left",
+      severity: "info",
+      label: "POTENTIAL UNLOCKED",
+      note: "Free roam + stay forward can lift creator output significantly.",
+    },
+  ],
+
   finalCoachNote:
     "Your squad is already usable. First protect the right side with safer instructions, then upgrade RB when you want the biggest improvement.",
 };

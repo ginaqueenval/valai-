@@ -3,15 +3,50 @@
 "use client";
 
 import type { ChangeEvent, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DivisionLevel,
   Goal,
   Platform,
+  PlayerCallout,
+  PlayerCalloutSeverity,
   ValbriSquadAdvisorResult,
 } from "@/lib/ai/valbriSquadAdvisorSchema";
 
 const ACCENT = "#3DDBC1";
+
+function severityColor(s: PlayerCalloutSeverity) {
+  if (s === "critical") return "#FF6B6B";
+  if (s === "warning") return "#FFB860";
+  return ACCENT;
+}
+
+function useIsMobilePortrait() {
+  const [v, setV] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(
+      "(max-width: 900px) and (orientation: portrait)"
+    );
+    const update = () => setV(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return v;
+}
+
+function useLockBodyScroll(locked: boolean) {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!locked) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [locked]);
+}
 
 export default function AiSquadAdvisorPage() {
   const [result, setResult] = useState<ValbriSquadAdvisorResult | null>(null);
@@ -28,13 +63,17 @@ export default function AiSquadAdvisorPage() {
   const [goal, setGoal] = useState<Goal>("Best Overall Improvement");
   const [currentTactics, setCurrentTactics] = useState("");
 
+  const [analysisMode, setAnalysisMode] = useState(false);
+  const isMobilePortrait = useIsMobilePortrait();
+  useLockBodyScroll(analysisMode);
+
+  useEffect(() => {
+    if (result) setAnalysisMode(true);
+  }, [result]);
+
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
+    if (!file) return;
     setSelectedImageFile(file);
     setSelectedImageName(file.name);
     setImagePreviewUrl(URL.createObjectURL(file));
@@ -51,7 +90,6 @@ export default function AiSquadAdvisorPage() {
       }
 
       const formData = new FormData();
-
       formData.append("squadImage", selectedImageFile);
       formData.append("platform", platform);
       formData.append("divisionLevel", divisionLevel);
@@ -85,67 +123,85 @@ export default function AiSquadAdvisorPage() {
   }
 
   return (
-    <main
-      className="min-h-screen text-white"
-      style={{
-        background:
-          "radial-gradient(1200px 600px at 20% 0%, rgba(61,219,193,0.08), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(61,219,193,0.05), transparent 60%), #04080F",
-      }}
-    >
-      <section className="mx-auto max-w-7xl px-4 py-10">
-        <div className="mb-10">
-          <p
-            className="mb-3 text-xs font-semibold uppercase tracking-[0.3em]"
-            style={{ color: ACCENT }}
-          >
-            Valbri AI Tools
-          </p>
+    <>
+      <main
+        className="min-h-screen text-white"
+        style={{
+          background:
+            "radial-gradient(1200px 600px at 20% 0%, rgba(61,219,193,0.08), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(61,219,193,0.05), transparent 60%), #04080F",
+        }}
+      >
+        <section className="mx-auto max-w-7xl px-4 py-10">
+          <div className="mb-10">
+            <p
+              className="mb-3 text-xs font-semibold uppercase tracking-[0.3em]"
+              style={{ color: ACCENT }}
+            >
+              Valbri AI Tools
+            </p>
 
-          <h1 className="text-3xl font-bold tracking-tight md:text-5xl">
-            Valbri AI Squad Advisor
-          </h1>
+            <h1 className="text-3xl font-bold tracking-tight md:text-5xl">
+              Valbri AI Squad Advisor
+            </h1>
 
-          <p className="mt-4 max-w-2xl text-base text-slate-400">
-            Upload your FC squad. The Reinforcement Engine returns tactical
-            advice, squad scoring, weaknesses, player roles, and upgrade
-            pathways — in a single analytical report.
-          </p>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
-          <InputPanel
-            imagePreviewUrl={imagePreviewUrl}
-            selectedImageName={selectedImageName}
-            handleImageChange={handleImageChange}
-            platform={platform}
-            setPlatform={setPlatform}
-            divisionLevel={divisionLevel}
-            setDivisionLevel={setDivisionLevel}
-            goal={goal}
-            setGoal={setGoal}
-            currentTactics={currentTactics}
-            setCurrentTactics={setCurrentTactics}
-            isLoading={isLoading}
-            handleAnalyzeClick={handleAnalyzeClick}
-            errorMessage={errorMessage}
-          />
-
-          <div className="space-y-6">
-            {!result ? (
-              <EmptyState />
-            ) : (
-              <ReinforcementEngineReport
-                result={result}
-                imagePreviewUrl={imagePreviewUrl}
-                platform={platform}
-                divisionLevel={divisionLevel}
-                goal={goal}
-              />
-            )}
+            <p className="mt-4 max-w-2xl text-base text-slate-400">
+              Upload your FC squad. The Reinforcement Engine returns tactical
+              advice, squad scoring, weaknesses, player roles, and upgrade
+              pathways — in a single analytical report.
+            </p>
           </div>
-        </div>
-      </section>
-    </main>
+
+          <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
+            <InputPanel
+              imagePreviewUrl={imagePreviewUrl}
+              selectedImageName={selectedImageName}
+              handleImageChange={handleImageChange}
+              platform={platform}
+              setPlatform={setPlatform}
+              divisionLevel={divisionLevel}
+              setDivisionLevel={setDivisionLevel}
+              goal={goal}
+              setGoal={setGoal}
+              currentTactics={currentTactics}
+              setCurrentTactics={setCurrentTactics}
+              isLoading={isLoading}
+              handleAnalyzeClick={handleAnalyzeClick}
+              errorMessage={errorMessage}
+            />
+
+            <div className="space-y-6">
+              {!result ? (
+                <EmptyState />
+              ) : (
+                <ReinforcementEngineInline
+                  result={result}
+                  imagePreviewUrl={imagePreviewUrl}
+                  platform={platform}
+                  divisionLevel={divisionLevel}
+                  goal={goal}
+                  onReopen={() => setAnalysisMode(true)}
+                />
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {analysisMode && result ? (
+        isMobilePortrait ? (
+          <RotateOverlay onClose={() => setAnalysisMode(false)} />
+        ) : (
+          <LandscapeDashboard
+            result={result}
+            imagePreviewUrl={imagePreviewUrl}
+            platform={platform}
+            divisionLevel={divisionLevel}
+            goal={goal}
+            onClose={() => setAnalysisMode(false)}
+          />
+        )
+      ) : null}
+    </>
   );
 }
 
@@ -378,28 +434,219 @@ function EmptyState() {
         </h2>
 
         <p className="mx-auto mt-3 max-w-md text-slate-400">
-          The engine will return a strategic summary, performance alerts,
-          connectivity graph, and a staged upgrade pathway.
+          When the engine finishes, the analysis opens in a full-width landscape
+          dashboard with the squad in the center and insights on both sides.
         </p>
       </div>
     </Panel>
   );
 }
 
-/* ----------------------- REINFORCEMENT ENGINE REPORT ----------------------- */
+/* --------------------------- INLINE RESULT VIEW --------------------------- */
 
-function ReinforcementEngineReport({
+function ReinforcementEngineInline({
   result,
   imagePreviewUrl,
   platform,
   divisionLevel,
   goal,
+  onReopen,
 }: {
   result: ValbriSquadAdvisorResult;
   imagePreviewUrl: string;
   platform: Platform;
   divisionLevel: DivisionLevel;
   goal: Goal;
+  onReopen: () => void;
+}) {
+  const overall100 = Math.round(result.scores.overall * 10);
+  const chemistry33 = Math.round(result.scores.chemistry * 3.3);
+
+  return (
+    <div className="space-y-6">
+      <Panel highlight>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <HexBadge />
+            <div>
+              <p
+                className="text-xs font-semibold uppercase tracking-[0.3em]"
+                style={{ color: ACCENT }}
+              >
+                Analysis Ready
+              </p>
+              <p className="mt-1 text-sm text-slate-200">
+                {result.summary.headline}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onReopen}
+            className="rounded-xl px-4 py-2 text-sm font-semibold text-black transition"
+            style={{
+              background: `linear-gradient(135deg, ${ACCENT}, #5CFCE6)`,
+              boxShadow: "0 0 18px rgba(61,219,193,0.4)",
+            }}
+          >
+            Open Full Analysis ▸
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs text-slate-400">
+          For the best experience, rotate your phone to landscape — the full
+          dashboard puts the squad in the middle with insights on both sides.
+        </p>
+      </Panel>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MiniScore label="Overall" value={result.scores.overall} bright />
+        <MiniScore label="Attack" value={result.scores.attack} />
+        <MiniScore label="Midfield" value={result.scores.midfield} />
+        <MiniScore label="Defense" value={result.scores.defense} />
+        <MiniScore label="Chemistry" value={result.scores.chemistry} />
+        <MiniScore label="Tactical Fit" value={result.scores.tacticalFit} />
+        <div className="col-span-2 rounded-lg border border-[#3DDBC1]/30 bg-[#3DDBC1]/[0.06] px-3 py-2 text-center">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+            Pathway · Chem
+          </p>
+          <p className="text-base font-bold" style={{ color: ACCENT }}>
+            {overall100}/100 · {chemistry33}/33
+          </p>
+        </div>
+      </div>
+
+      <Panel>
+        <PanelHeader
+          label="Squad Reinforcement Engine — Analysis Report"
+          tag="REPORT"
+        />
+
+        <p className="mt-3 text-sm leading-relaxed text-slate-300">
+          {result.scoreReasons.overall} {result.scoreReasons.tacticalFit}
+        </p>
+
+        <div className="mt-4 rounded-xl border border-[#3DDBC1]/25 bg-[#3DDBC1]/[0.06] p-4">
+          <p
+            className="text-xs font-semibold uppercase tracking-[0.25em]"
+            style={{ color: ACCENT }}
+          >
+            Final Coach Note
+          </p>
+          <p className="mt-2 text-sm text-slate-200">{result.finalCoachNote}</p>
+        </div>
+      </Panel>
+
+      <p className="text-center text-xs text-slate-500">
+        Platform {platform} · {divisionLevel} · Goal: {goal}
+      </p>
+    </div>
+  );
+}
+
+/* ----------------------------- ROTATE OVERLAY ----------------------------- */
+
+function RotateOverlay({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex flex-col items-center justify-center px-6 text-center"
+      style={{
+        background:
+          "radial-gradient(800px 500px at 50% 40%, rgba(61,219,193,0.08), transparent 70%), #04080F",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 rounded-md border border-white/10 px-3 py-1 text-xs text-slate-300 hover:bg-white/5 hover:text-white"
+      >
+        ✕
+      </button>
+
+      <RotateIcon />
+
+      <p
+        className="mt-6 text-xs font-semibold uppercase tracking-[0.35em]"
+        style={{ color: ACCENT }}
+      >
+        Analysis Ready
+      </p>
+      <h2 className="mt-3 max-w-md text-2xl font-bold text-white">
+        Rotate your phone to view the full Reinforcement Engine
+      </h2>
+      <p className="mt-3 max-w-md text-sm text-slate-400">
+        Turn your device sideways. The dashboard places your squad in the
+        center, with strategic insights and upgrade pathways on both sides.
+      </p>
+      <p className="mt-6 text-xs text-slate-500">
+        If nothing happens when you rotate, disable your phone&apos;s rotation
+        lock first.
+      </p>
+
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-8 rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+      >
+        Stay in portrait
+      </button>
+    </div>
+  );
+}
+
+function RotateIcon() {
+  return (
+    <div className="relative">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <defs>
+          <radialGradient id="rotGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={ACCENT} stopOpacity="0.4" />
+            <stop offset="100%" stopColor={ACCENT} stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <circle cx="60" cy="60" r="56" fill="url(#rotGlow)" />
+        <g
+          transform="rotate(-25 60 60)"
+          stroke={ACCENT}
+          strokeWidth="2"
+          fill="none"
+        >
+          <rect x="38" y="22" width="44" height="76" rx="8" />
+          <line x1="48" y1="32" x2="72" y2="32" />
+          <circle cx="60" cy="90" r="2.5" fill={ACCENT} />
+        </g>
+        <g
+          stroke={ACCENT}
+          strokeWidth="2"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M 22 88 A 30 30 0 0 0 88 90" />
+          <polyline points="88,82 92,90 84,92" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+/* --------------------------- LANDSCAPE DASHBOARD --------------------------- */
+
+function LandscapeDashboard({
+  result,
+  imagePreviewUrl,
+  platform,
+  divisionLevel,
+  goal,
+  onClose,
+}: {
+  result: ValbriSquadAdvisorResult;
+  imagePreviewUrl: string;
+  platform: Platform;
+  divisionLevel: DivisionLevel;
+  goal: Goal;
+  onClose: () => void;
 }) {
   const overall100 = Math.round(result.scores.overall * 10);
   const chemistry33 = Math.round(result.scores.chemistry * 3.3);
@@ -407,7 +654,6 @@ function ReinforcementEngineReport({
     1,
     Math.min(5, Math.round(result.scores.overall / 2))
   );
-
   const stage = useMemo(() => {
     if (overall100 >= 90) return 5;
     if (overall100 >= 80) return 4;
@@ -417,275 +663,295 @@ function ReinforcementEngineReport({
   }, [overall100]);
 
   return (
-    <div className="space-y-6">
-      {/* Engine header bar */}
-      <div
-        className="relative overflow-hidden rounded-2xl border p-4"
-        style={{
-          borderColor: "rgba(61,219,193,0.25)",
-          background:
-            "linear-gradient(180deg, rgba(61,219,193,0.06) 0%, rgba(8,16,24,0.4) 100%)",
-        }}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <HexBadge />
-            <div>
-              <p
-                className="text-xs font-semibold uppercase tracking-[0.3em]"
-                style={{ color: ACCENT }}
-              >
-                AI Squad Reinforcement Engine
-              </p>
-              <p className="mt-1 text-sm text-slate-300">
-                {result.summary.headline}
-              </p>
-            </div>
+    <div
+      className="fixed inset-0 z-50 flex flex-col text-white"
+      style={{
+        background:
+          "radial-gradient(1200px 600px at 20% 0%, rgba(61,219,193,0.06), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(61,219,193,0.04), transparent 60%), #04080F",
+      }}
+    >
+      {/* Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-[#3DDBC1]/20 bg-black/40 px-4 py-2 backdrop-blur">
+        <div className="flex items-center gap-3">
+          <HexBadge />
+          <div>
+            <p
+              className="text-[10px] font-semibold uppercase tracking-[0.3em]"
+              style={{ color: ACCENT }}
+            >
+              AI Squad Reinforcement Engine
+            </p>
+            <p className="mt-0.5 text-xs text-slate-300">
+              {result.summary.headline}
+            </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs">
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="hidden items-center gap-2 sm:flex">
             <Chip>{platform}</Chip>
             <Chip>{divisionLevel}</Chip>
             <Chip>{goal}</Chip>
-          </div>
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-white/5 hover:text-white"
+          >
+            ✕
+          </button>
         </div>
       </div>
 
-      {/* Main dashboard grid */}
-      <div className="grid gap-6 xl:grid-cols-[300px_1fr_320px]">
-        {/* LEFT COLUMN */}
-        <div className="space-y-6">
-          <Panel>
-            <div className="flex items-center gap-3">
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-lg border text-lg font-bold"
-                style={{
-                  borderColor: "rgba(61,219,193,0.35)",
-                  color: ACCENT,
-                  background: "rgba(61,219,193,0.06)",
-                }}
-              >
-                {ratingStars * 10 + Math.round(result.scores.overall * 10) % 10}
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                  Current Squad
-                </p>
-                <h3 className="text-lg font-bold">
-                  {result.summary.playstyle}
-                </h3>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <RatingRow label="Rating" stars={ratingStars} />
-              <div>
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Chemistry</span>
-                  <span style={{ color: ACCENT }}>{chemistry33}/33</span>
-                </div>
-                <div className="mt-1 h-1.5 w-full rounded-full bg-white/[0.06]">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${(chemistry33 / 33) * 100}%`,
-                      background: `linear-gradient(90deg, ${ACCENT}, #5CFCE6)`,
-                      boxShadow: `0 0 12px ${ACCENT}88`,
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-2">
-              <SideButton label="Set Active" />
-              <SideButton label="Tactics" />
-              <SideButton label="Use Squad Builder" />
-              <SideButton label="Rename" muted />
-              <SideButton label="Clear Squad" muted />
-            </div>
-          </Panel>
-
-          <Panel highlight>
-            <PanelHeader label="AI Strategic Summary" tag="CORE" />
-            <ul className="mt-3 space-y-3 text-sm">
-              <li>
-                <p
-                  className="text-xs font-semibold uppercase tracking-[0.18em]"
-                  style={{ color: ACCENT }}
-                >
-                  Core Squad Stability
-                </p>
-                <p className="mt-1 text-slate-300">
-                  {labelFromScore(result.scores.overall)}.{" "}
-                  {result.scoreReasons.overall}
-                </p>
-              </li>
-
-              <li>
-                <p
-                  className="text-xs font-semibold uppercase tracking-[0.18em]"
-                  style={{ color: ACCENT }}
-                >
-                  Identified Weaknesses
-                </p>
-                <p className="mt-1 text-slate-300">
-                  {result.weaknesses
-                    .slice(0, 2)
-                    .map((w) => w.area)
-                    .join(" · ")}
-                </p>
-              </li>
-
-              <li>
-                <p
-                  className="text-xs font-semibold uppercase tracking-[0.18em]"
-                  style={{ color: ACCENT }}
-                >
-                  Upgrade Pathway Alignment
-                </p>
-                <p className="mt-1 text-slate-300">
-                  {overall100}/100 · focusing on{" "}
-                  {result.summary.mainOpportunity.toLowerCase()}.
-                </p>
-              </li>
-            </ul>
-          </Panel>
-        </div>
-
-        {/* CENTER COLUMN */}
-        <div className="space-y-6">
-          <Panel>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                  Formation Snapshot
-                </p>
-                <p className="mt-1 text-sm text-slate-300">
-                  Rating {result.scores.overall.toFixed(1)} · Chem{" "}
-                  {chemistry33}/33
-                </p>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <Chip>{result.recommendedTactic.style}</Chip>
-              </div>
-            </div>
-
-            <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/40">
-              {imagePreviewUrl ? (
-                <img
-                  src={imagePreviewUrl}
-                  alt="Squad formation"
-                  className="block max-h-[360px] w-full object-contain"
-                />
-              ) : (
-                <div className="flex h-48 items-center justify-center text-sm text-slate-500">
-                  Squad image not available
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Stat label="Width" value={result.recommendedTactic.settings.width} />
-              <Stat label="Depth" value={result.recommendedTactic.settings.depth} />
-              <Stat
-                label="Att. Width"
-                value={result.recommendedTactic.settings.attackingWidth}
-              />
-              <Stat
-                label="Box Players"
-                value={result.recommendedTactic.settings.playersInBox}
-              />
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <KV
-                label="Defensive"
-                value={result.recommendedTactic.settings.defensiveStyle}
-              />
-              <KV
-                label="Build-Up"
-                value={result.recommendedTactic.settings.buildUpPlay}
-              />
-              <KV
-                label="Chance Creation"
-                value={result.recommendedTactic.settings.chanceCreation}
-              />
-            </div>
-          </Panel>
-
-          <PerformanceAlert
-            mainWeakness={result.summary.mainWeakness}
-            weaknesses={result.weaknesses}
-          />
-
-          <Panel>
-            <PanelHeader label="Player Roles" tag="ROLES" />
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {result.playerInstructions.map((item) => (
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto p-3">
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns:
+              "minmax(0, 240px) minmax(0, 1fr) minmax(0, 280px)",
+          }}
+        >
+          {/* LEFT COLUMN */}
+          <div className="space-y-3">
+            <Panel compact>
+              <div className="flex items-center gap-2">
                 <div
-                  key={item.position}
-                  className="rounded-xl border border-white/10 bg-black/30 p-4"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border text-base font-bold"
+                  style={{
+                    borderColor: "rgba(61,219,193,0.35)",
+                    color: ACCENT,
+                    background: "rgba(61,219,193,0.06)",
+                  }}
                 >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]"
-                      style={{
-                        borderColor: "rgba(61,219,193,0.35)",
-                        color: ACCENT,
-                      }}
-                    >
-                      {item.position}
-                    </span>
-                    <p className="text-sm font-semibold">{item.instruction}</p>
-                  </div>
-                  <p className="mt-2 text-sm text-slate-400">{item.reason}</p>
+                  {overall100}
                 </div>
-              ))}
-            </div>
-          </Panel>
-        </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Current Squad
+                  </p>
+                  <h3 className="truncate text-sm font-bold leading-tight">
+                    {result.summary.playstyle}
+                  </h3>
+                </div>
+              </div>
 
-        {/* RIGHT COLUMN */}
-        <div className="space-y-6">
-          <Panel>
-            <PanelHeader label="Squad Connectivity Graph" tag="LINKS" />
-            <ConnectivityGraph
-              strengths={result.strengths.length}
-              weaknesses={result.weaknesses.length}
+              <div className="mt-3 space-y-2">
+                <RatingRow label="Rating" stars={ratingStars} />
+                <div>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Chemistry</span>
+                    <span style={{ color: ACCENT }}>{chemistry33}/33</span>
+                  </div>
+                  <div className="mt-1 h-1 w-full rounded-full bg-white/[0.06]">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${(chemistry33 / 33) * 100}%`,
+                        background: `linear-gradient(90deg, ${ACCENT}, #5CFCE6)`,
+                        boxShadow: `0 0 8px ${ACCENT}88`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-1.5">
+                <SideButton label="Set Active" />
+                <SideButton label="Tactics" />
+                <SideButton label="Use Squad Builder" />
+              </div>
+            </Panel>
+
+            <Panel highlight compact>
+              <PanelHeader label="AI Strategic Summary" tag="CORE" />
+              <ul className="mt-2 space-y-2 text-xs">
+                <li>
+                  <p
+                    className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+                    style={{ color: ACCENT }}
+                  >
+                    Core Squad Stability
+                  </p>
+                  <p className="mt-0.5 text-slate-300">
+                    {labelFromScore(result.scores.overall)}.{" "}
+                    {result.scoreReasons.overall}
+                  </p>
+                </li>
+                <li>
+                  <p
+                    className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+                    style={{ color: ACCENT }}
+                  >
+                    Identified Weaknesses
+                  </p>
+                  <p className="mt-0.5 text-slate-300">
+                    {result.weaknesses
+                      .slice(0, 2)
+                      .map((w) => w.area)
+                      .join(" · ")}
+                  </p>
+                </li>
+                <li>
+                  <p
+                    className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+                    style={{ color: ACCENT }}
+                  >
+                    Upgrade Pathway Alignment
+                  </p>
+                  <p className="mt-0.5 text-slate-300">
+                    {overall100}/100 · focusing on{" "}
+                    {result.summary.mainOpportunity.toLowerCase()}.
+                  </p>
+                </li>
+              </ul>
+            </Panel>
+
+            <Panel compact>
+              <PanelHeader label="Strengths" tag="+" />
+              <div className="mt-2 space-y-2 text-xs">
+                {result.strengths.slice(0, 3).map((item) => (
+                  <div key={item.title}>
+                    <p className="font-semibold text-white">{item.title}</p>
+                    <p className="mt-0.5 text-slate-400">{item.reason}</p>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </div>
+
+          {/* CENTER COLUMN */}
+          <div className="space-y-3">
+            <SquadCanvas
+              imagePreviewUrl={imagePreviewUrl}
+              callouts={result.playerCallouts ?? []}
+              rating={result.scores.overall}
+              chemistry={chemistry33}
+              tacticStyle={result.recommendedTactic.style}
             />
-            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-              <MiniScore label="Atk" value={result.scores.attack} />
-              <MiniScore label="Mid" value={result.scores.midfield} />
-              <MiniScore label="Def" value={result.scores.defense} />
-              <MiniScore label="Chem" value={result.scores.chemistry} />
-              <MiniScore label="Fit" value={result.scores.tacticalFit} />
-              <MiniScore label="Ovr" value={result.scores.overall} bright />
-            </div>
-          </Panel>
 
-          <Panel>
-            <PanelHeader label="Upgrade Pathways" tag={`${overall100}/100`} />
+            <Panel compact>
+              <PanelHeader label="Recommended Tactic" tag="FIT" />
+              <p className="mt-2 text-sm font-semibold">
+                {result.recommendedTactic.style}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                {result.recommendedTactic.reason}
+              </p>
 
-            <div className="mt-4">
-              <div className="relative h-2.5 w-full rounded-full bg-white/[0.06]">
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                <Stat
+                  label="Width"
+                  value={result.recommendedTactic.settings.width}
+                />
+                <Stat
+                  label="Depth"
+                  value={result.recommendedTactic.settings.depth}
+                />
+                <Stat
+                  label="Att. Width"
+                  value={result.recommendedTactic.settings.attackingWidth}
+                />
+                <Stat
+                  label="Box Players"
+                  value={result.recommendedTactic.settings.playersInBox}
+                />
+              </div>
+
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <KV
+                  label="Defensive"
+                  value={result.recommendedTactic.settings.defensiveStyle}
+                />
+                <KV
+                  label="Build-Up"
+                  value={result.recommendedTactic.settings.buildUpPlay}
+                />
+                <KV
+                  label="Chance Creation"
+                  value={result.recommendedTactic.settings.chanceCreation}
+                />
+              </div>
+            </Panel>
+
+            <Panel compact>
+              <PanelHeader label="Player Roles" tag="ROLES" />
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                {result.playerInstructions.map((item) => (
+                  <div
+                    key={item.position}
+                    className="rounded-lg border border-white/10 bg-black/30 p-2.5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em]"
+                        style={{
+                          borderColor: "rgba(61,219,193,0.35)",
+                          color: ACCENT,
+                        }}
+                      >
+                        {item.position}
+                      </span>
+                      <p className="text-xs font-semibold">
+                        {item.instruction}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {item.reason}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="space-y-3">
+            <Panel compact>
+              <PanelHeader label="Squad Connectivity Graph" tag="LINKS" />
+              <ConnectivityGraph
+                strengths={result.strengths.length}
+                weaknesses={result.weaknesses.length}
+              />
+              <div className="mt-2 grid grid-cols-3 gap-1.5">
+                <MiniScore label="Atk" value={result.scores.attack} />
+                <MiniScore label="Mid" value={result.scores.midfield} />
+                <MiniScore label="Def" value={result.scores.defense} />
+                <MiniScore label="Chem" value={result.scores.chemistry} />
+                <MiniScore label="Fit" value={result.scores.tacticalFit} />
+                <MiniScore
+                  label="Ovr"
+                  value={result.scores.overall}
+                  bright
+                />
+              </div>
+            </Panel>
+
+            <PerformanceAlert
+              mainWeakness={result.summary.mainWeakness}
+              weaknesses={result.weaknesses}
+            />
+
+            <Panel compact>
+              <PanelHeader
+                label="Upgrade Pathways"
+                tag={`${overall100}/100`}
+              />
+              <div className="mt-2 relative h-2 w-full rounded-full bg-white/[0.06]">
                 <div
                   className="absolute left-0 top-0 h-full rounded-full"
                   style={{
                     width: `${overall100}%`,
                     background: `linear-gradient(90deg, ${ACCENT}, #5CFCE6)`,
-                    boxShadow: `0 0 14px ${ACCENT}88`,
+                    boxShadow: `0 0 10px ${ACCENT}88`,
                   }}
                 />
               </div>
-
-              <div className="mt-3 grid grid-cols-5 gap-1 text-center text-[10px]">
+              <div className="mt-2 grid grid-cols-5 gap-0.5 text-center text-[9px]">
                 {[1, 2, 3, 4, 5].map((s) => (
                   <div
                     key={s}
-                    className="rounded-md border px-1 py-1"
+                    className="rounded border px-0.5 py-1"
                     style={
                       stage >= s
                         ? {
@@ -699,150 +965,341 @@ function ReinforcementEngineReport({
                           }
                     }
                   >
-                    STAGE {s}
+                    S{s}
                   </div>
                 ))}
               </div>
-            </div>
+              <div className="mt-3 space-y-2 text-xs">
+                <PathwayRow
+                  label="Stage 3 — Tactical"
+                  summary={result.upgradePaths.basic.summary}
+                  level={result.upgradePaths.basic.coinLevel}
+                  done={stage >= 3}
+                />
+                <PathwayRow
+                  label="Stage 4 — Economic"
+                  summary={result.upgradePaths.economic.summary}
+                  level={result.upgradePaths.economic.coinLevel}
+                  done={stage >= 4}
+                />
+                <PathwayRow
+                  label="Stage 5 — Synergy"
+                  summary={result.upgradePaths.best.summary}
+                  level={result.upgradePaths.best.coinLevel}
+                  done={stage >= 5}
+                />
+              </div>
+            </Panel>
 
-            <div className="mt-5 space-y-3 text-sm">
-              <PathwayRow
-                label="Stage 3 — Tactical"
-                summary={result.upgradePaths.basic.summary}
-                level={result.upgradePaths.basic.coinLevel}
-                done={stage >= 3}
-              />
-              <PathwayRow
-                label="Stage 4 — Economic"
-                summary={result.upgradePaths.economic.summary}
-                level={result.upgradePaths.economic.coinLevel}
-                done={stage >= 4}
-              />
-              <PathwayRow
-                label="Stage 5 — Synergy"
-                summary={result.upgradePaths.best.summary}
-                level={result.upgradePaths.best.coinLevel}
-                done={stage >= 5}
-              />
-            </div>
-          </Panel>
-
-          <Panel highlight>
-            <PanelHeader label="Upgrade Priorities" tag="PRIORITY" />
-            <div className="mt-3 space-y-3">
-              {result.upgradePriorities.map((p) => (
-                <div
-                  key={p.priority}
-                  className="rounded-xl border border-white/10 bg-black/30 p-3"
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold"
-                      style={{
-                        background: "rgba(61,219,193,0.1)",
-                        color: ACCENT,
-                        border: "1px solid rgba(61,219,193,0.35)",
-                      }}
-                    >
-                      {p.priority}
-                    </span>
-                    <p className="font-semibold">{p.area}</p>
+            <Panel highlight compact>
+              <PanelHeader label="Upgrade Priorities" tag="PRIORITY" />
+              <div className="mt-2 space-y-2 text-xs">
+                {result.upgradePriorities.map((p) => (
+                  <div
+                    key={p.priority}
+                    className="rounded-lg border border-white/10 bg-black/30 p-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold"
+                        style={{
+                          background: "rgba(61,219,193,0.1)",
+                          color: ACCENT,
+                          border: "1px solid rgba(61,219,193,0.35)",
+                        }}
+                      >
+                        {p.priority}
+                      </span>
+                      <p className="text-xs font-semibold">{p.area}</p>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-300">
+                      {p.recommendedProfile}
+                    </p>
                   </div>
-                  <p className="mt-1 text-sm text-slate-300">
-                    {p.recommendedProfile}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">{p.reason}</p>
-                </div>
-              ))}
+                ))}
+              </div>
+            </Panel>
+          </div>
+        </div>
+
+        {/* Bottom: Analysis Report */}
+        <div className="mt-3">
+          <Panel compact>
+            <PanelHeader
+              label="Squad Reinforcement Engine — Analysis Report"
+              tag="REPORT"
+            />
+            <p className="mt-2 text-xs leading-relaxed text-slate-300">
+              Current squad (Rating {result.scores.overall.toFixed(1)}, Chem{" "}
+              {chemistry33}/33) exhibits high individual card ratings but{" "}
+              {result.summary.mainWeakness.toLowerCase()} introduces a
+              positional inefficiency. {result.scoreReasons.overall}{" "}
+              {result.scoreReasons.tacticalFit}
+              {result.weaknesses[0]
+                ? ` The most critical immediate upgrade is ${result.weaknesses[0].area}, as it is the dominant bottleneck to full team rating.`
+                : ""}{" "}
+              Overall pathway progress is {overall100}/100. Stages{" "}
+              {Math.min(5, stage + 1)} & {Math.min(5, stage + 2)} will
+              specifically address player-acquisition and tactical-role
+              alignment.
+            </p>
+
+            <div className="mt-3 grid gap-2 md:grid-cols-3">
+              <ReportCard
+                heading="Form Performance"
+                body={`Overall ${labelFromScore(
+                  result.scores.overall
+                )}, but ${result.summary.mainWeakness.toLowerCase()} needs attention.`}
+              />
+              <ReportCard
+                heading="Synergy Target"
+                body={result.summary.mainOpportunity}
+              />
+              <ReportCard
+                heading="Potential Unlocked"
+                body={`Switch to "${result.recommendedTactic.style}". ${result.recommendedTactic.reason}`}
+              />
+            </div>
+
+            <div className="mt-3 rounded-xl border border-[#3DDBC1]/25 bg-[#3DDBC1]/[0.06] p-3">
+              <p
+                className="text-[10px] font-semibold uppercase tracking-[0.25em]"
+                style={{ color: ACCENT }}
+              >
+                Final Coach Note
+              </p>
+              <p className="mt-1 text-xs text-slate-200">
+                {result.finalCoachNote}
+              </p>
             </div>
           </Panel>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Analysis Report */}
-      <Panel>
-        <div className="flex items-center justify-between gap-3">
-          <PanelHeader
-            label="Squad Reinforcement Engine — Analysis Report"
-            tag="REPORT"
-          />
+/* ------------------------------ SQUAD CANVAS ------------------------------ */
+
+function SquadCanvas({
+  imagePreviewUrl,
+  callouts,
+  rating,
+  chemistry,
+  tacticStyle,
+}: {
+  imagePreviewUrl: string;
+  callouts: PlayerCallout[];
+  rating: number;
+  chemistry: number;
+  tacticStyle: string;
+}) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+
+  const measure = useCallback(() => {
+    if (imgRef.current) {
+      setImgSize({
+        w: imgRef.current.clientWidth,
+        h: imgRef.current.clientHeight,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    measure();
+    if (typeof window === "undefined") return;
+    window.addEventListener("resize", measure);
+    const el = imgRef.current;
+    let ro: ResizeObserver | null = null;
+    if (el && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => measure());
+      ro.observe(el);
+    }
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, [measure, imagePreviewUrl]);
+
+  const leftCallouts = useMemo(
+    () => callouts.filter((c) => c.side === "left"),
+    [callouts]
+  );
+  const rightCallouts = useMemo(
+    () => callouts.filter((c) => c.side === "right"),
+    [callouts]
+  );
+
+  // Distribute callouts vertically so they don't overlap
+  const leftPositions = useMemo(
+    () => distributeCallouts(leftCallouts, imgSize.h),
+    [leftCallouts, imgSize.h]
+  );
+  const rightPositions = useMemo(
+    () => distributeCallouts(rightCallouts, imgSize.h),
+    [rightCallouts, imgSize.h]
+  );
+
+  return (
+    <Panel compact>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+            Formation Snapshot
+          </p>
+          <p className="mt-0.5 text-xs text-slate-300">
+            Rating {rating.toFixed(1)} · Chem {chemistry}/33
+          </p>
+        </div>
+        <Chip>{tacticStyle}</Chip>
+      </div>
+
+      <div
+        className="relative mt-3"
+        style={{
+          paddingLeft: leftCallouts.length > 0 ? 168 : 0,
+          paddingRight: rightCallouts.length > 0 ? 168 : 0,
+        }}
+      >
+        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
+          {imagePreviewUrl ? (
+            <img
+              ref={imgRef}
+              src={imagePreviewUrl}
+              alt="Squad"
+              onLoad={measure}
+              className="block w-full"
+            />
+          ) : (
+            <div className="flex h-48 items-center justify-center text-xs text-slate-500">
+              Squad image not available
+            </div>
+          )}
+
+          {imgSize.w > 0 && callouts.length > 0 ? (
+            <svg
+              className="pointer-events-none absolute inset-0"
+              style={{ width: imgSize.w, height: imgSize.h }}
+            >
+              {callouts.map((c, i) => {
+                const x = c.bbox.x * imgSize.w;
+                const y = c.bbox.y * imgSize.h;
+                const w = c.bbox.w * imgSize.w;
+                const h = c.bbox.h * imgSize.h;
+                const midY = y + h / 2;
+                const isRight = c.side === "right";
+                const startX = isRight ? x + w : x;
+                const endX = isRight ? imgSize.w : 0;
+                const color = severityColor(c.severity);
+
+                return (
+                  <g key={i}>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={w}
+                      height={h}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={2}
+                      rx={6}
+                      style={{ filter: `drop-shadow(0 0 4px ${color})` }}
+                    />
+                    <line
+                      x1={startX}
+                      y1={midY}
+                      x2={endX}
+                      y2={midY}
+                      stroke={color}
+                      strokeWidth={1.5}
+                      strokeDasharray="4 3"
+                      opacity={0.85}
+                    />
+                    <circle cx={endX} cy={midY} r={3} fill={color} />
+                  </g>
+                );
+              })}
+            </svg>
+          ) : null}
         </div>
 
-        <p className="mt-3 text-sm leading-relaxed text-slate-300">
-          Current squad (Rating {result.scores.overall.toFixed(1)}, Chem{" "}
-          {chemistry33}/33) exhibits high individual card ratings but{" "}
-          {result.summary.mainWeakness.toLowerCase()} introduces a positional
-          inefficiency. {result.scoreReasons.overall}{" "}
-          {result.scoreReasons.tacticalFit}{" "}
-          {result.weaknesses[0]
-            ? `The most critical immediate upgrade is ${result.weaknesses[0].area}, as it is the dominant bottleneck to full team rating. `
-            : ""}
-          Overall pathway progress is {overall100}/100, and stages{" "}
-          {stage + 1} & {Math.min(5, stage + 2)} will specifically address
-          player-acquisition and tactical-role alignment.
+        {imgSize.h > 0
+          ? leftPositions.map(({ callout, y }, i) => (
+              <CalloutBox
+                key={`l-${i}`}
+                callout={callout}
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: y - 22,
+                  width: 156,
+                }}
+              />
+            ))
+          : null}
+
+        {imgSize.h > 0
+          ? rightPositions.map(({ callout, y }, i) => (
+              <CalloutBox
+                key={`r-${i}`}
+                callout={callout}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: y - 22,
+                  width: 156,
+                }}
+              />
+            ))
+          : null}
+      </div>
+    </Panel>
+  );
+}
+
+function distributeCallouts(callouts: PlayerCallout[], imgHeight: number) {
+  if (!imgHeight) return [] as { callout: PlayerCallout; y: number }[];
+  const sorted = [...callouts].sort((a, b) => a.bbox.y - b.bbox.y);
+  const minGap = 56;
+  const positions: { callout: PlayerCallout; y: number }[] = [];
+  let lastY = -Infinity;
+  for (const c of sorted) {
+    let y = (c.bbox.y + c.bbox.h / 2) * imgHeight;
+    if (y - lastY < minGap) y = lastY + minGap;
+    if (y > imgHeight - 8) y = imgHeight - 8;
+    positions.push({ callout: c, y });
+    lastY = y;
+  }
+  return positions;
+}
+
+function CalloutBox({
+  callout,
+  style,
+}: {
+  callout: PlayerCallout;
+  style?: React.CSSProperties;
+}) {
+  const color = severityColor(callout.severity);
+  return (
+    <div style={style}>
+      <div
+        className="rounded-md border bg-black/85 px-2 py-1.5 backdrop-blur"
+        style={{
+          borderColor: color + "66",
+          boxShadow: `0 0 10px ${color}33`,
+        }}
+      >
+        <p
+          className="text-[9px] font-semibold uppercase tracking-[0.18em]"
+          style={{ color }}
+        >
+          {callout.position} · {callout.label}
         </p>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <ReportCard
-            heading="Form Performance"
-            body={`Overall ${labelFromScore(
-              result.scores.overall
-            )}, but ${result.summary.mainWeakness.toLowerCase()} needs attention.`}
-          />
-          <ReportCard
-            heading="Synergy Target"
-            body={result.summary.mainOpportunity}
-          />
-          <ReportCard
-            heading="Potential Unlocked"
-            body={`Switch to "${result.recommendedTactic.style}". ${result.recommendedTactic.reason}`}
-          />
-        </div>
-
-        <div className="mt-5 rounded-xl border border-[#3DDBC1]/25 bg-[#3DDBC1]/[0.06] p-4">
-          <p
-            className="text-xs font-semibold uppercase tracking-[0.25em]"
-            style={{ color: ACCENT }}
-          >
-            Final Coach Note
-          </p>
-          <p className="mt-2 text-sm text-slate-200">
-            {result.finalCoachNote}
-          </p>
-        </div>
-      </Panel>
-
-      {/* Strengths & Weaknesses */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Panel>
-          <PanelHeader label="Strengths" tag="+" />
-          <div className="mt-4 space-y-4">
-            {result.strengths.map((item) => (
-              <div key={item.title}>
-                <h3 className="font-semibold text-white">{item.title}</h3>
-                <p className="mt-1 text-sm text-slate-400">{item.reason}</p>
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel>
-          <PanelHeader label="Weaknesses" tag="!" />
-          <div className="mt-4 space-y-4">
-            {result.weaknesses.map((item) => (
-              <div key={item.area}>
-                <h3 className="font-semibold text-white">{item.area}</h3>
-                <p className="mt-1 text-sm text-slate-400">{item.reason}</p>
-                <p
-                  className="mt-2 text-[10px] font-semibold uppercase tracking-[0.25em]"
-                  style={{ color: ACCENT }}
-                >
-                  {item.fixType.replaceAll("_", " ")}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Panel>
+        <p className="mt-0.5 text-[10px] leading-tight text-slate-300">
+          {callout.note}
+        </p>
       </div>
     </div>
   );
@@ -853,13 +1310,15 @@ function ReinforcementEngineReport({
 function Panel({
   children,
   highlight,
+  compact,
 }: {
   children: ReactNode;
   highlight?: boolean;
+  compact?: boolean;
 }) {
   return (
     <div
-      className="relative rounded-2xl border p-5"
+      className={`relative rounded-2xl border ${compact ? "p-3" : "p-5"}`}
       style={{
         borderColor: highlight
           ? "rgba(61,219,193,0.35)"
@@ -909,13 +1368,13 @@ function PanelHeader({ label, tag }: { label: string; tag: string }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <p
-        className="text-xs font-semibold uppercase tracking-[0.25em]"
+        className="text-[10px] font-semibold uppercase tracking-[0.25em]"
         style={{ color: ACCENT }}
       >
         {label}
       </p>
       <span
-        className="rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]"
+        className="rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em]"
         style={{
           borderColor: "rgba(61,219,193,0.3)",
           color: ACCENT,
@@ -931,7 +1390,7 @@ function PanelHeader({ label, tag }: { label: string; tag: string }) {
 function HexBadge() {
   return (
     <div
-      className="flex h-10 w-10 items-center justify-center"
+      className="flex h-9 w-9 items-center justify-center"
       style={{
         clipPath:
           "polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%)",
@@ -946,7 +1405,7 @@ function HexBadge() {
 function Chip({ children }: { children: ReactNode }) {
   return (
     <span
-      className="rounded-full border px-2.5 py-1 text-[11px] font-medium"
+      className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
       style={{
         borderColor: "rgba(61,219,193,0.25)",
         color: ACCENT,
@@ -958,27 +1417,18 @@ function Chip({ children }: { children: ReactNode }) {
   );
 }
 
-function SideButton({
-  label,
-  muted,
-}: {
-  label: string;
-  muted?: boolean;
-}) {
+function SideButton({ label }: { label: string }) {
   return (
     <button
       type="button"
-      className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition hover:bg-white/[0.04]"
+      className="flex w-full items-center justify-between rounded-lg border px-2.5 py-1.5 text-left text-xs transition hover:bg-white/[0.04]"
       style={{
-        borderColor: muted
-          ? "rgba(255,255,255,0.06)"
-          : "rgba(61,219,193,0.2)",
-        color: muted ? "#94a3b8" : "white",
-        background: muted ? "transparent" : "rgba(61,219,193,0.04)",
+        borderColor: "rgba(61,219,193,0.2)",
+        background: "rgba(61,219,193,0.04)",
       }}
     >
       <span>{label}</span>
-      <span style={{ color: muted ? "#475569" : ACCENT }}>›</span>
+      <span style={{ color: ACCENT }}>›</span>
     </button>
   );
 }
@@ -986,7 +1436,7 @@ function SideButton({
 function RatingRow({ label, stars }: { label: string; stars: number }) {
   return (
     <div className="flex items-center justify-between">
-      <p className="text-xs text-slate-400">{label}</p>
+      <p className="text-[10px] text-slate-400">{label}</p>
       <div className="flex gap-0.5">
         {[1, 2, 3, 4, 5].map((s) => (
           <span
@@ -1006,13 +1456,11 @@ function RatingRow({ label, stars }: { label: string; stars: number }) {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div
-      className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-center"
-    >
-      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+    <div className="rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-center">
+      <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">
         {label}
       </p>
-      <p className="text-lg font-bold" style={{ color: ACCENT }}>
+      <p className="text-sm font-bold" style={{ color: ACCENT }}>
         {value}
       </p>
     </div>
@@ -1021,11 +1469,13 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 function KV({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+    <div className="rounded-lg border border-white/10 bg-black/30 px-2 py-1.5">
+      <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">
         {label}
       </p>
-      <p className="mt-0.5 text-sm font-semibold text-white">{value}</p>
+      <p className="mt-0.5 truncate text-xs font-semibold text-white">
+        {value}
+      </p>
     </div>
   );
 }
@@ -1041,7 +1491,7 @@ function MiniScore({
 }) {
   return (
     <div
-      className="rounded-lg border px-2 py-2 text-center"
+      className="rounded-lg border px-1.5 py-1 text-center"
       style={{
         borderColor: bright
           ? "rgba(61,219,193,0.4)"
@@ -1049,11 +1499,11 @@ function MiniScore({
         background: bright ? "rgba(61,219,193,0.08)" : "rgba(0,0,0,0.25)",
       }}
     >
-      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+      <p className="text-[9px] uppercase tracking-[0.18em] text-slate-500">
         {label}
       </p>
       <p
-        className="text-base font-bold"
+        className="text-sm font-bold"
         style={{ color: bright ? ACCENT : "white" }}
       >
         {value.toFixed(1)}
@@ -1075,7 +1525,7 @@ function PathwayRow({
 }) {
   return (
     <div
-      className="rounded-lg border px-3 py-2"
+      className="rounded-lg border px-2 py-1.5"
       style={{
         borderColor: done
           ? "rgba(61,219,193,0.35)"
@@ -1084,11 +1534,11 @@ function PathwayRow({
       }}
     >
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold" style={{ color: ACCENT }}>
+        <p className="text-[10px] font-semibold" style={{ color: ACCENT }}>
           {label}
         </p>
         <span
-          className="rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.2em]"
+          className="rounded border px-1 py-0.5 text-[8px] uppercase tracking-[0.18em]"
           style={{
             borderColor: "rgba(255,255,255,0.1)",
             color: "#94a3b8",
@@ -1097,7 +1547,7 @@ function PathwayRow({
           {level}
         </span>
       </div>
-      <p className="mt-1 text-xs text-slate-400">{summary}</p>
+      <p className="mt-0.5 text-[10px] text-slate-400">{summary}</p>
     </div>
   );
 }
@@ -1111,7 +1561,7 @@ function PerformanceAlert({
 }) {
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border p-5"
+      className="relative overflow-hidden rounded-2xl border p-3"
       style={{
         borderColor: "rgba(255,170,80,0.35)",
         background:
@@ -1121,13 +1571,13 @@ function PerformanceAlert({
       <CornerTicks />
       <div className="flex items-center justify-between">
         <p
-          className="text-xs font-semibold uppercase tracking-[0.25em]"
+          className="text-[10px] font-semibold uppercase tracking-[0.25em]"
           style={{ color: "#FFB860" }}
         >
           Performance Alert
         </p>
         <span
-          className="rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]"
+          className="rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em]"
           style={{
             borderColor: "rgba(255,170,80,0.4)",
             color: "#FFB860",
@@ -1137,12 +1587,12 @@ function PerformanceAlert({
           ALERT
         </span>
       </div>
-      <p className="mt-2 text-sm text-slate-200">
+      <p className="mt-2 text-xs text-slate-200">
         {mainWeakness} — position stats below target threshold.
       </p>
-      <ul className="mt-3 space-y-1.5 text-xs text-slate-400">
-        {weaknesses.map((w) => (
-          <li key={w.area} className="flex items-start gap-2">
+      <ul className="mt-2 space-y-1 text-[11px] text-slate-400">
+        {weaknesses.slice(0, 3).map((w) => (
+          <li key={w.area} className="flex items-start gap-1.5">
             <span style={{ color: "#FFB860" }}>›</span>
             <span>
               <span className="text-slate-200">{w.area}</span> · {w.reason}
@@ -1156,14 +1606,14 @@ function PerformanceAlert({
 
 function ReportCard({ heading, body }: { heading: string; body: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30 p-4">
+    <div className="rounded-lg border border-white/10 bg-black/30 p-2.5">
       <p
-        className="text-[10px] font-semibold uppercase tracking-[0.25em]"
+        className="text-[9px] font-semibold uppercase tracking-[0.25em]"
         style={{ color: ACCENT }}
       >
         {heading}
       </p>
-      <p className="mt-1 text-sm text-slate-200">{body}</p>
+      <p className="mt-1 text-xs text-slate-200">{body}</p>
     </div>
   );
 }
@@ -1176,9 +1626,9 @@ function ConnectivityGraph({
   weaknesses: number;
 }) {
   const total = 11;
-  const radius = 70;
-  const cx = 90;
-  const cy = 90;
+  const radius = 60;
+  const cx = 80;
+  const cy = 80;
 
   const nodes = Array.from({ length: total }, (_, i) => {
     const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
@@ -1191,8 +1641,8 @@ function ConnectivityGraph({
   });
 
   return (
-    <div className="mt-3 flex items-center justify-center">
-      <svg width="180" height="180" viewBox="0 0 180 180">
+    <div className="mt-2 flex items-center justify-center">
+      <svg width="160" height="160" viewBox="0 0 160 160">
         <defs>
           <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor={ACCENT} stopOpacity="0.6" />
@@ -1200,7 +1650,7 @@ function ConnectivityGraph({
           </radialGradient>
         </defs>
 
-        <circle cx={cx} cy={cy} r={radius + 8} fill="url(#coreGlow)" />
+        <circle cx={cx} cy={cy} r={radius + 6} fill="url(#coreGlow)" />
 
         {nodes.map((n, i) => (
           <line
@@ -1237,7 +1687,7 @@ function ConnectivityGraph({
         <circle
           cx={cx}
           cy={cy}
-          r={8}
+          r={7}
           fill={ACCENT}
           style={{ filter: `drop-shadow(0 0 6px ${ACCENT})` }}
         />
@@ -1247,7 +1697,7 @@ function ConnectivityGraph({
             key={`n-${i}`}
             cx={n.x}
             cy={n.y}
-            r={n.weak ? 5 : 4}
+            r={n.weak ? 4 : 3.5}
             fill={n.weak ? "#FFB860" : n.strong ? ACCENT : "#94a3b8"}
             style={{
               filter: n.weak

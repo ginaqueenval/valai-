@@ -151,6 +151,16 @@ The JSON must match this structure:
       "reason": ""
     }
   ],
+  "playerCallouts": [
+    {
+      "position": "",
+      "bbox": { "x": 0, "y": 0, "w": 0, "h": 0 },
+      "side": "right",
+      "severity": "warning",
+      "label": "",
+      "note": ""
+    }
+  ],
   "upgradePriorities": [
     {
       "priority": 1,
@@ -207,4 +217,18 @@ IMPORTANT:
 - Do not mention live prices.
 - Do not mention Futbin, Futwiz, or live market tracking.
 - Do not suggest exact player names unless they are visible in the squad data or provided by a trusted database.
+
+PLAYER CALLOUTS (visual overlay for the squad image):
+- Return up to 5 callouts in "playerCallouts" — only for player cards that genuinely need attention (synergy target, performance alert, chemistry issue, upgrade candidate).
+- "bbox" is a NORMALIZED bounding box on the uploaded squad image:
+  - All four numbers are between 0 and 1.
+  - Origin (0, 0) is the TOP-LEFT corner of the image, (1, 1) is the BOTTOM-RIGHT.
+  - "x" and "y" are the top-left corner of the player card.
+  - "w" and "h" are the width and height of the card.
+- Pick the bbox to tightly wrap the player card on screen, not the entire row.
+- "side" is "left" if the card sits in the left half of the image, otherwise "right". It tells the UI which side the callout text should float on.
+- "severity": "info" (neutral note), "warning" (needs adjustment), "critical" (urgent issue).
+- "label" is a SHORT all-caps title (max ~3 words): "SYNERGY TARGET", "PERFORMANCE ALERT", "FORM PEAK", "POSITION CHEMISTRY", "UPGRADE CANDIDATE", "POTENTIAL UNLOCKED".
+- "note" is one analytical sentence explaining the issue or insight.
+- If no card needs a callout, return an empty array.
 `;
