@@ -704,16 +704,18 @@ function LandscapeDashboard({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto">
+        {/* === ABOVE THE FOLD === */}
         <div
-          className="grid gap-3"
+          className="grid gap-3 p-3"
           style={{
             gridTemplateColumns:
               "minmax(0, 240px) minmax(0, 1fr) minmax(0, 280px)",
+            minHeight: "calc(100dvh - 60px)",
           }}
         >
-          {/* LEFT COLUMN */}
-          <div className="space-y-3">
+          {/* LEFT */}
+          <div className="flex min-h-0 flex-col gap-3">
             <Panel compact>
               <div className="flex items-center gap-2">
                 <div
@@ -806,22 +808,10 @@ function LandscapeDashboard({
                 </li>
               </ul>
             </Panel>
-
-            <Panel compact>
-              <PanelHeader label="Strengths" tag="+" />
-              <div className="mt-2 space-y-2 text-xs">
-                {result.strengths.slice(0, 3).map((item) => (
-                  <div key={item.title}>
-                    <p className="font-semibold text-white">{item.title}</p>
-                    <p className="mt-0.5 text-slate-400">{item.reason}</p>
-                  </div>
-                ))}
-              </div>
-            </Panel>
           </div>
 
-          {/* CENTER COLUMN */}
-          <div className="space-y-3">
+          {/* CENTER — squad image takes full available height */}
+          <div className="flex min-h-0 flex-col">
             <SquadCanvas
               imagePreviewUrl={imagePreviewUrl}
               callouts={result.playerCallouts ?? []}
@@ -829,7 +819,96 @@ function LandscapeDashboard({
               chemistry={chemistry33}
               tacticStyle={result.recommendedTactic.style}
             />
+          </div>
 
+          {/* RIGHT */}
+          <div className="flex min-h-0 flex-col gap-3">
+            <Panel compact>
+              <PanelHeader label="Connectivity Graph" tag="LINKS" />
+              <ConnectivityGraph
+                strengths={result.strengths.length}
+                weaknesses={result.weaknesses.length}
+              />
+              <div className="mt-2 grid grid-cols-3 gap-1.5">
+                <MiniScore label="Atk" value={result.scores.attack} />
+                <MiniScore label="Mid" value={result.scores.midfield} />
+                <MiniScore label="Def" value={result.scores.defense} />
+                <MiniScore label="Chem" value={result.scores.chemistry} />
+                <MiniScore label="Fit" value={result.scores.tacticalFit} />
+                <MiniScore
+                  label="Ovr"
+                  value={result.scores.overall}
+                  bright
+                />
+              </div>
+            </Panel>
+
+            <PerformanceAlert
+              mainWeakness={result.summary.mainWeakness}
+              weaknesses={result.weaknesses}
+            />
+
+            <Panel compact>
+              <PanelHeader
+                label="Upgrade Pathways"
+                tag={`${overall100}/100`}
+              />
+              <div className="mt-2 relative h-2 w-full rounded-full bg-white/[0.06]">
+                <div
+                  className="absolute left-0 top-0 h-full rounded-full"
+                  style={{
+                    width: `${overall100}%`,
+                    background: `linear-gradient(90deg, ${ACCENT}, #5CFCE6)`,
+                    boxShadow: `0 0 10px ${ACCENT}88`,
+                  }}
+                />
+              </div>
+              <div className="mt-2 grid grid-cols-5 gap-0.5 text-center text-[9px]">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <div
+                    key={s}
+                    className="rounded border px-0.5 py-1"
+                    style={
+                      stage >= s
+                        ? {
+                            borderColor: "rgba(61,219,193,0.45)",
+                            color: ACCENT,
+                            background: "rgba(61,219,193,0.08)",
+                          }
+                        : {
+                            borderColor: "rgba(255,255,255,0.08)",
+                            color: "#64748b",
+                          }
+                    }
+                  >
+                    S{s}
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="flex flex-col items-center gap-1 border-t border-white/5 py-3">
+          <p
+            className="text-[10px] font-semibold uppercase tracking-[0.3em]"
+            style={{ color: ACCENT }}
+          >
+            Scroll for full breakdown
+          </p>
+          <span
+            className="animate-bounce text-base"
+            style={{ color: ACCENT }}
+            aria-hidden
+          >
+            ↓
+          </span>
+        </div>
+
+        {/* === BELOW THE FOLD === */}
+        <div className="space-y-3 px-3 pb-6">
+          <div className="grid gap-3 lg:grid-cols-2">
             <Panel compact>
               <PanelHeader label="Recommended Tactic" tag="FIT" />
               <p className="mt-2 text-sm font-semibold">
@@ -905,92 +984,7 @@ function LandscapeDashboard({
             </Panel>
           </div>
 
-          {/* RIGHT COLUMN */}
-          <div className="space-y-3">
-            <Panel compact>
-              <PanelHeader label="Squad Connectivity Graph" tag="LINKS" />
-              <ConnectivityGraph
-                strengths={result.strengths.length}
-                weaknesses={result.weaknesses.length}
-              />
-              <div className="mt-2 grid grid-cols-3 gap-1.5">
-                <MiniScore label="Atk" value={result.scores.attack} />
-                <MiniScore label="Mid" value={result.scores.midfield} />
-                <MiniScore label="Def" value={result.scores.defense} />
-                <MiniScore label="Chem" value={result.scores.chemistry} />
-                <MiniScore label="Fit" value={result.scores.tacticalFit} />
-                <MiniScore
-                  label="Ovr"
-                  value={result.scores.overall}
-                  bright
-                />
-              </div>
-            </Panel>
-
-            <PerformanceAlert
-              mainWeakness={result.summary.mainWeakness}
-              weaknesses={result.weaknesses}
-            />
-
-            <Panel compact>
-              <PanelHeader
-                label="Upgrade Pathways"
-                tag={`${overall100}/100`}
-              />
-              <div className="mt-2 relative h-2 w-full rounded-full bg-white/[0.06]">
-                <div
-                  className="absolute left-0 top-0 h-full rounded-full"
-                  style={{
-                    width: `${overall100}%`,
-                    background: `linear-gradient(90deg, ${ACCENT}, #5CFCE6)`,
-                    boxShadow: `0 0 10px ${ACCENT}88`,
-                  }}
-                />
-              </div>
-              <div className="mt-2 grid grid-cols-5 gap-0.5 text-center text-[9px]">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <div
-                    key={s}
-                    className="rounded border px-0.5 py-1"
-                    style={
-                      stage >= s
-                        ? {
-                            borderColor: "rgba(61,219,193,0.45)",
-                            color: ACCENT,
-                            background: "rgba(61,219,193,0.08)",
-                          }
-                        : {
-                            borderColor: "rgba(255,255,255,0.08)",
-                            color: "#64748b",
-                          }
-                    }
-                  >
-                    S{s}
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 space-y-2 text-xs">
-                <PathwayRow
-                  label="Stage 3 — Tactical"
-                  summary={result.upgradePaths.basic.summary}
-                  level={result.upgradePaths.basic.coinLevel}
-                  done={stage >= 3}
-                />
-                <PathwayRow
-                  label="Stage 4 — Economic"
-                  summary={result.upgradePaths.economic.summary}
-                  level={result.upgradePaths.economic.coinLevel}
-                  done={stage >= 4}
-                />
-                <PathwayRow
-                  label="Stage 5 — Synergy"
-                  summary={result.upgradePaths.best.summary}
-                  level={result.upgradePaths.best.coinLevel}
-                  done={stage >= 5}
-                />
-              </div>
-            </Panel>
-
+          <div className="grid gap-3 lg:grid-cols-3">
             <Panel highlight compact>
               <PanelHeader label="Upgrade Priorities" tag="PRIORITY" />
               <div className="mt-2 space-y-2 text-xs">
@@ -1015,15 +1009,76 @@ function LandscapeDashboard({
                     <p className="mt-1 text-[11px] text-slate-300">
                       {p.recommendedProfile}
                     </p>
+                    <p className="mt-0.5 text-[10px] text-slate-500">
+                      {p.reason}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
+            <Panel compact>
+              <PanelHeader label="Pathway Stages" tag="ROUTE" />
+              <div className="mt-2 space-y-2 text-xs">
+                <PathwayRow
+                  label="Stage 3 — Tactical"
+                  summary={result.upgradePaths.basic.summary}
+                  level={result.upgradePaths.basic.coinLevel}
+                  done={stage >= 3}
+                />
+                <PathwayRow
+                  label="Stage 4 — Economic"
+                  summary={result.upgradePaths.economic.summary}
+                  level={result.upgradePaths.economic.coinLevel}
+                  done={stage >= 4}
+                />
+                <PathwayRow
+                  label="Stage 5 — Synergy"
+                  summary={result.upgradePaths.best.summary}
+                  level={result.upgradePaths.best.coinLevel}
+                  done={stage >= 5}
+                />
+              </div>
+            </Panel>
+
+            <Panel compact>
+              <PanelHeader label="Strengths" tag="+" />
+              <div className="mt-2 space-y-2 text-xs">
+                {result.strengths.map((item) => (
+                  <div key={item.title}>
+                    <p className="font-semibold text-white">{item.title}</p>
+                    <p className="mt-0.5 text-slate-400">{item.reason}</p>
                   </div>
                 ))}
               </div>
             </Panel>
           </div>
-        </div>
 
-        {/* Bottom: Analysis Report */}
-        <div className="mt-3">
+          <Panel compact>
+            <PanelHeader label="Weaknesses" tag="!" />
+            <div className="mt-2 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {result.weaknesses.map((item) => (
+                <div
+                  key={item.area}
+                  className="rounded-lg border border-white/10 bg-black/30 p-2.5"
+                >
+                  <p className="text-xs font-semibold text-white">
+                    {item.area}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    {item.reason}
+                  </p>
+                  <p
+                    className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.18em]"
+                    style={{ color: ACCENT }}
+                  >
+                    {item.fixType.replaceAll("_", " ")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
           <Panel compact>
             <PanelHeader
               label="Squad Reinforcement Engine — Analysis Report"
@@ -1142,8 +1197,10 @@ function SquadCanvas({
   );
 
   return (
-    <Panel compact>
-      <div className="flex items-center justify-between">
+    <div className="relative flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+      <CornerTicks />
+
+      <div className="flex shrink-0 items-center justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
             Formation Snapshot
@@ -1155,31 +1212,31 @@ function SquadCanvas({
         <Chip>{tacticStyle}</Chip>
       </div>
 
-      <div
-        className="relative mt-3"
-        style={{
-          paddingLeft: leftCallouts.length > 0 ? 168 : 0,
-          paddingRight: rightCallouts.length > 0 ? 168 : 0,
-        }}
-      >
-        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40">
+      <div className="relative mt-2 flex min-h-0 flex-1 items-center justify-center">
+        <div className="relative inline-block">
           {imagePreviewUrl ? (
             <img
               ref={imgRef}
               src={imagePreviewUrl}
               alt="Squad"
               onLoad={measure}
-              className="block w-full"
+              className="block rounded-xl border border-white/10 bg-black/40"
+              style={{
+                maxWidth: "100%",
+                maxHeight: "calc(100dvh - 200px)",
+                width: "auto",
+                height: "auto",
+              }}
             />
           ) : (
-            <div className="flex h-48 items-center justify-center text-xs text-slate-500">
+            <div className="flex h-48 w-72 items-center justify-center rounded-xl border border-white/10 bg-black/40 text-xs text-slate-500">
               Squad image not available
             </div>
           )}
 
           {imgSize.w > 0 && callouts.length > 0 ? (
             <svg
-              className="pointer-events-none absolute inset-0"
+              className="pointer-events-none absolute left-0 top-0"
               style={{ width: imgSize.w, height: imgSize.h }}
             >
               {callouts.map((c, i) => {
@@ -1190,7 +1247,7 @@ function SquadCanvas({
                 const midY = y + h / 2;
                 const isRight = c.side === "right";
                 const startX = isRight ? x + w : x;
-                const endX = isRight ? imgSize.w : 0;
+                const endX = isRight ? imgSize.w - 12 : 12;
                 const color = severityColor(c.severity);
 
                 return (
@@ -1222,39 +1279,45 @@ function SquadCanvas({
               })}
             </svg>
           ) : null}
+
+          {imgSize.h > 0
+            ? leftPositions.map(({ callout, y }, i) => (
+                <CalloutBox
+                  key={`l-${i}`}
+                  callout={callout}
+                  style={{
+                    position: "absolute",
+                    left: 6,
+                    top: y - 22,
+                    width: "38%",
+                    maxWidth: 160,
+                    minWidth: 100,
+                    zIndex: 2,
+                  }}
+                />
+              ))
+            : null}
+
+          {imgSize.h > 0
+            ? rightPositions.map(({ callout, y }, i) => (
+                <CalloutBox
+                  key={`r-${i}`}
+                  callout={callout}
+                  style={{
+                    position: "absolute",
+                    right: 6,
+                    top: y - 22,
+                    width: "38%",
+                    maxWidth: 160,
+                    minWidth: 100,
+                    zIndex: 2,
+                  }}
+                />
+              ))
+            : null}
         </div>
-
-        {imgSize.h > 0
-          ? leftPositions.map(({ callout, y }, i) => (
-              <CalloutBox
-                key={`l-${i}`}
-                callout={callout}
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  top: y - 22,
-                  width: 156,
-                }}
-              />
-            ))
-          : null}
-
-        {imgSize.h > 0
-          ? rightPositions.map(({ callout, y }, i) => (
-              <CalloutBox
-                key={`r-${i}`}
-                callout={callout}
-                style={{
-                  position: "absolute",
-                  right: 0,
-                  top: y - 22,
-                  width: 156,
-                }}
-              />
-            ))
-          : null}
       </div>
-    </Panel>
+    </div>
   );
 }
 
