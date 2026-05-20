@@ -767,14 +767,7 @@ function CommandCenter({
         {/* === Body === */}
         <div className="hud-scroll flex-1 overflow-y-auto" style={{ height: "calc(100dvh - 56px)" }}>
           {/* Above-the-fold tactical command */}
-          <div
-            className="grid gap-3 p-3"
-            style={{
-              gridTemplateColumns:
-                "minmax(0, 260px) minmax(0, 1fr) minmax(0, 300px)",
-              minHeight: "calc(100dvh - 56px)",
-            }}
-          >
+          <div className="cc-grid gap-3 p-3">
             <LeftColumn result={result} chemistry33={chemistry33} overall100={overall100} />
 
             <CenterCanvas
