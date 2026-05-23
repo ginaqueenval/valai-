@@ -2,9 +2,17 @@
 
 "use client";
 
-import type { ChangeEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type {
+  ChatMessage,
   DivisionLevel,
   Goal,
   Platform,
@@ -20,8 +28,6 @@ import {
   HudCorners,
   HudHeading,
   HudIcon,
-  HudListButton,
-  HudMeter,
   HudPanel,
   HexBadge,
   PulseDot,
@@ -194,6 +200,7 @@ export default function AiSquadAdvisorPage() {
             platform={platform}
             divisionLevel={divisionLevel}
             goal={goal}
+            currentTactics={currentTactics}
             onClose={() => setAnalysisMode(false)}
           />
         )
@@ -225,7 +232,7 @@ function PageHero() {
             Squad Reinforcement Engine
           </h1>
           <p className="mt-1 text-xs text-slate-400">
-            Tactical analysis · Chemistry diagnostics · Upgrade pathways
+            Card-level callouts · Upgrade profiles · Tactical chat
           </p>
         </div>
       </div>
@@ -284,8 +291,8 @@ function IntakePanel(props: {
       scanline
     >
       <p className="text-xs text-slate-400">
-        Drop a squad screenshot. The engine ingests, scans the formation,
-        and returns a tactical report.
+        Drop a squad screenshot. The engine flags the cards that need
+        attention and recommends replacement profiles.
       </p>
 
       <div className="mt-5 space-y-5">
@@ -328,7 +335,10 @@ function IntakePanel(props: {
               </div>
             ) : (
               <div className="py-6">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center" style={{ color: HUD.primary }}>
+                <div
+                  className="mx-auto mb-3 flex h-12 w-12 items-center justify-center"
+                  style={{ color: HUD.primary }}
+                >
                   <HudIcon type="target" />
                 </div>
                 <p
@@ -359,7 +369,9 @@ function IntakePanel(props: {
                   className="px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition"
                   style={{
                     color: active ? HUD.primary : HUD.inkDim,
-                    background: active ? `${HUD.primary}14` : "rgba(255,255,255,0.02)",
+                    background: active
+                      ? `${HUD.primary}14`
+                      : "rgba(255,255,255,0.02)",
                     border: `1px solid ${active ? HUD.primary : "rgba(255,255,255,0.08)"}`,
                     clipPath:
                       "polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%)",
@@ -529,8 +541,9 @@ function StandbyPanel() {
           Drop a squad. Engine standing by.
         </h2>
         <p className="mt-2 max-w-md text-xs text-slate-400">
-          Once the squad image is ingested, the engine auto-launches a
-          landscape tactical command center with full diagnostics.
+          Once the squad image is ingested, the engine auto-launches the
+          landscape command center: per-card callouts, replacement profiles,
+          and a tactical chat below.
         </p>
       </div>
     </HudPanel>
@@ -554,70 +567,57 @@ function InlineSummary({
   goal: Goal;
   onReopen: () => void;
 }) {
-  const overall100 = Math.round(result.scores.overall * 10);
-  const chemistry33 = Math.round(result.scores.chemistry * 3.3);
+  const callouts = result.playerCallouts ?? [];
+  const critical = callouts.filter((c) => c.severity === "critical").length;
+  const warning = callouts.filter((c) => c.severity === "warning").length;
+  const info = callouts.filter((c) => c.severity === "info").length;
 
   return (
-    <>
-      <HudPanel
-        title="Analysis Ready"
-        tag="LIVE"
-        icon={<HudIcon type="target" />}
-        variant="upgrade"
-        meta={<PulseDot color={HUD.primary} />}
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p
-              className="text-[10px] font-semibold uppercase tracking-[0.25em]"
-              style={{ color: HUD.primary }}
-            >
-              Squad Reinforcement Engine
-            </p>
-            <h2 className="mt-1 text-lg font-bold text-white">
-              {result.summary.headline}
-            </h2>
-            <p className="mt-2 text-xs text-slate-400">
-              Rotate device or click below to enter the full command center.
-            </p>
+    <HudPanel
+      title="Analysis Ready"
+      tag="LIVE"
+      icon={<HudIcon type="target" />}
+      variant="upgrade"
+      meta={<PulseDot color={HUD.primary} />}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p
+            className="text-[10px] font-semibold uppercase tracking-[0.25em]"
+            style={{ color: HUD.primary }}
+          >
+            Squad Reinforcement Engine
+          </p>
+          <h2 className="mt-1 text-lg font-bold text-white">
+            {callouts.length} player callout{callouts.length === 1 ? "" : "s"} ready
+          </h2>
+          <p className="mt-2 text-xs text-slate-400">
+            Open the command center to see each card&apos;s issue, suggested
+            replacement profile, and chat with the engine about tactics.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+            <HudChip small variant="critical">
+              {critical} critical
+            </HudChip>
+            <HudChip small variant="alert">
+              {warning} warning
+            </HudChip>
+            <HudChip small>{info} info</HudChip>
+            <HudChip small>{platform}</HudChip>
+            <HudChip small variant="elite">
+              {divisionLevel}
+            </HudChip>
+            <HudChip small variant="synergy">
+              {goal}
+            </HudChip>
           </div>
-          <HudButton variant="primary" onClick={onReopen}>
-            <HudIcon type="target" width={12} height={12} />
-            <span>Open command center</span>
-          </HudButton>
         </div>
-      </HudPanel>
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <HudMeter label="OVR" value={result.scores.overall} variant="default" />
-        <HudMeter label="Chem" value={result.scores.chemistry} variant="synergy" />
-        <HudMeter label="Tactical Fit" value={result.scores.tacticalFit} variant="elite" />
-        <HudMeter label="Attack" value={result.scores.attack} variant="default" />
-        <HudMeter label="Midfield" value={result.scores.midfield} variant="default" />
-        <HudMeter label="Defense" value={result.scores.defense} variant={result.scores.defense < 7 ? "alert" : "default"} />
+        <HudButton variant="primary" onClick={onReopen}>
+          <HudIcon type="target" width={12} height={12} />
+          <span>Open command center</span>
+        </HudButton>
       </div>
-
-      <HudPanel
-        title="Final Coach Note"
-        tag="REPORT"
-        icon={<HudIcon type="upgrade" />}
-        variant="elite"
-      >
-        <p className="text-xs text-slate-300">{result.finalCoachNote}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
-          <HudChip small>{platform}</HudChip>
-          <HudChip small variant="elite">
-            {divisionLevel}
-          </HudChip>
-          <HudChip small variant="synergy">
-            {goal}
-          </HudChip>
-          <span className="ml-auto" style={{ color: HUD.primary }}>
-            Pathway · {overall100}/100 · Chem {chemistry33}/33
-          </span>
-        </div>
-      </HudPanel>
-    </>
+    </HudPanel>
   );
 }
 
@@ -689,6 +689,7 @@ function CommandCenter({
   platform,
   divisionLevel,
   goal,
+  currentTactics,
   onClose,
 }: {
   result: ValbriSquadAdvisorResult;
@@ -696,18 +697,9 @@ function CommandCenter({
   platform: Platform;
   divisionLevel: DivisionLevel;
   goal: Goal;
+  currentTactics: string;
   onClose: () => void;
 }) {
-  const overall100 = Math.round(result.scores.overall * 10);
-  const chemistry33 = Math.round(result.scores.chemistry * 3.3);
-  const stage = useMemo(() => {
-    if (overall100 >= 90) return 5;
-    if (overall100 >= 80) return 4;
-    if (overall100 >= 65) return 3;
-    if (overall100 >= 50) return 2;
-    return 1;
-  }, [overall100]);
-
   const callouts = result.playerCallouts ?? [];
 
   return (
@@ -731,7 +723,8 @@ function CommandCenter({
                 Valbri // Squad Reinforcement Engine
               </p>
               <p className="mt-0.5 truncate text-xs text-slate-200">
-                {result.summary.headline}
+                {callouts.length} player callout
+                {callouts.length === 1 ? "" : "s"} · scroll for tactical chat
               </p>
             </div>
           </div>
@@ -765,22 +758,14 @@ function CommandCenter({
         </div>
 
         {/* === Body === */}
-        <div className="hud-scroll flex-1 overflow-y-auto" style={{ height: "calc(100dvh - 56px)" }}>
-          {/* Above-the-fold tactical command */}
-          <div className="cc-grid gap-3 p-3">
-            <LeftColumn result={result} chemistry33={chemistry33} overall100={overall100} />
-
-            <CenterCanvas
+        <div
+          className="hud-scroll flex-1 overflow-y-auto"
+          style={{ height: "calc(100dvh - 56px)" }}
+        >
+          <div className="p-3">
+            <AnalysisStage
               imagePreviewUrl={imagePreviewUrl}
               callouts={callouts}
-              result={result}
-              chemistry33={chemistry33}
-            />
-
-            <RightColumn
-              result={result}
-              overall100={overall100}
-              stage={stage}
             />
           </div>
 
@@ -790,7 +775,7 @@ function CommandCenter({
               className="text-[10px] font-semibold uppercase tracking-[0.35em]"
               style={{ color: HUD.primary }}
             >
-              // Scroll for full breakdown
+              // Scroll for tactical chat
             </p>
             <span
               className="hud-breathe text-base"
@@ -801,13 +786,15 @@ function CommandCenter({
             </span>
           </div>
 
-          {/* Below-the-fold breakdown */}
-          <BelowFoldBreakdown
-            result={result}
-            overall100={overall100}
-            stage={stage}
-            chemistry33={chemistry33}
-          />
+          <div className="px-3 pb-8">
+            <ChatBot
+              analysis={result}
+              platform={platform}
+              divisionLevel={divisionLevel}
+              goal={goal}
+              currentTactics={currentTactics}
+            />
+          </div>
         </div>
       </HudBackground>
     </div>
@@ -815,191 +802,188 @@ function CommandCenter({
 }
 
 /* ============================================================
-   LEFT COLUMN
+   ANALYSIS STAGE — 3 columns (left callouts | image | right callouts)
+   with global SVG connector overlay
    ============================================================ */
 
-function LeftColumn({
-  result,
-  chemistry33,
-  overall100,
-}: {
-  result: ValbriSquadAdvisorResult;
-  chemistry33: number;
-  overall100: number;
-}) {
-  return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <HudPanel
-        title="Squad ID"
-        tag="UNIT"
-        icon={<HudIcon type="core" />}
-        variant="default"
-        compact
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="relative flex h-12 w-12 items-center justify-center"
-            style={{
-              border: `1px solid ${HUD.primary}55`,
-              background: `${HUD.primary}10`,
-              clipPath:
-                "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
-            }}
-          >
-            <span
-              className="font-mono text-lg font-bold tabular-nums"
-              style={{ color: HUD.primary, textShadow: `0 0 8px ${HUD.primary}` }}
-            >
-              {overall100}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[9px] uppercase tracking-[0.25em] text-slate-500">
-              Playstyle
-            </p>
-            <h3 className="truncate text-sm font-bold leading-tight text-white">
-              {result.summary.playstyle}
-            </h3>
-          </div>
-        </div>
+type Connector = {
+  id: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  color: string;
+};
 
-        <div className="mt-3 space-y-2">
-          <HudMeter
-            label="Chemistry"
-            value={chemistry33}
-            max={33}
-            variant="synergy"
-            decimals={0}
-            unit="/33"
-          />
-          <HudMeter
-            label="Overall"
-            value={overall100}
-            max={100}
-            variant="default"
-            decimals={0}
-            unit="/100"
-          />
-        </div>
-
-        <div className="mt-3 space-y-1.5">
-          <HudListButton label="Set Active" icon={<HudIcon type="target" width={10} height={10} />} />
-          <HudListButton label="Tactics" icon={<HudIcon type="upgrade" width={10} height={10} />} />
-          <HudListButton label="Squad Builder" icon={<HudIcon type="synergy" width={10} height={10} />} />
-        </div>
-      </HudPanel>
-
-      <HudPanel
-        title="Strategic Summary"
-        tag="CORE"
-        icon={<HudIcon type="core" />}
-        variant="elite"
-        scanline
-        compact
-      >
-        <ul className="space-y-3 text-xs">
-          <li>
-            <HudHeading color={HUD.elite}>Core Stability</HudHeading>
-            <p className="mt-1 text-slate-300">{result.scoreReasons.overall}</p>
-          </li>
-          <li>
-            <HudHeading color={HUD.alert}>Identified Weaknesses</HudHeading>
-            <ul className="mt-1 space-y-1">
-              {result.weaknesses.slice(0, 3).map((w) => (
-                <li key={w.area} className="flex gap-2 text-slate-300">
-                  <span style={{ color: HUD.alert }}>›</span>
-                  <span>
-                    <span className="text-white">{w.area}</span> · {w.reason}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </li>
-          <li>
-            <HudHeading color={HUD.synergy}>Pathway Alignment</HudHeading>
-            <p className="mt-1 text-slate-300">
-              {overall100}/100 · focusing on{" "}
-              {result.summary.mainOpportunity.toLowerCase()}.
-            </p>
-          </li>
-        </ul>
-      </HudPanel>
-    </div>
-  );
-}
-
-/* ============================================================
-   CENTER CANVAS — squad image with targeting overlays
-   ============================================================ */
-
-function CenterCanvas({
+function AnalysisStage({
   imagePreviewUrl,
   callouts,
-  result,
-  chemistry33,
 }: {
   imagePreviewUrl: string;
   callouts: PlayerCallout[];
-  result: ValbriSquadAdvisorResult;
-  chemistry33: number;
 }) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const imageWrapRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+
+  const leftCallouts = useMemo(
+    () => callouts.filter((c) => c.side === "left"),
+    [callouts]
+  );
+  const rightCallouts = useMemo(
+    () => callouts.filter((c) => c.side === "right"),
+    [callouts]
+  );
+
+  // Stable IDs so refs / measurements survive re-renders
+  const calloutIds = useMemo(
+    () =>
+      callouts.map(
+        (c, i) =>
+          `${c.side}-${c.position}-${i}-${c.bbox.x.toFixed(3)}-${c.bbox.y.toFixed(3)}`
+      ),
+    [callouts]
+  );
+
+  const calloutRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const setCalloutRef = useCallback(
+    (id: string) => (el: HTMLDivElement | null) => {
+      if (el) calloutRefs.current.set(id, el);
+      else calloutRefs.current.delete(id);
+    },
+    []
+  );
+
+  const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
   const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+  const [frames, setFrames] = useState<
+    { id: string; x: number; y: number; w: number; h: number; color: string; severity: PlayerCalloutSeverity }[]
+  >([]);
+  const [connectors, setConnectors] = useState<Connector[]>([]);
 
   const measure = useCallback(() => {
-    if (imgRef.current) {
-      setImgSize({
-        w: imgRef.current.clientWidth,
-        h: imgRef.current.clientHeight,
+    const stage = stageRef.current;
+    const img = imgRef.current;
+    if (!stage || !img) return;
+    if (!img.complete || img.naturalWidth === 0) return;
+
+    const stageRect = stage.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
+
+    setStageSize({ w: stageRect.width, h: stageRect.height });
+    setImgSize({ w: imgRect.width, h: imgRect.height });
+
+    // Frames SVG is a direct sibling of the <img> inside the same wrapper,
+    // so its (0,0) aligns with the image's top-left — no offset needed.
+    const nextFrames = callouts.map((c, i) => {
+      const x = c.bbox.x * imgRect.width;
+      const y = c.bbox.y * imgRect.height;
+      const w = c.bbox.w * imgRect.width;
+      const h = c.bbox.h * imgRect.height;
+      const variant = severityToVariant(c.severity);
+      return {
+        id: calloutIds[i],
+        x,
+        y,
+        w,
+        h,
+        color: variantConfig(variant).color,
+        severity: c.severity,
+      };
+    });
+    setFrames(nextFrames);
+
+    // Connectors are drawn in stage-local coords.
+    const cardOriginX = imgRect.left - stageRect.left;
+    const cardOriginY = imgRect.top - stageRect.top;
+
+    const nextConnectors: Connector[] = [];
+    callouts.forEach((c, i) => {
+      const id = calloutIds[i];
+      const calloutEl = calloutRefs.current.get(id);
+      if (!calloutEl) return;
+
+      const cardX = cardOriginX + c.bbox.x * imgRect.width;
+      const cardY = cardOriginY + c.bbox.y * imgRect.height;
+      const cardW = c.bbox.w * imgRect.width;
+      const cardH = c.bbox.h * imgRect.height;
+      const cardCy = cardY + cardH / 2;
+
+      const calloutRect = calloutEl.getBoundingClientRect();
+      const calloutLeft = calloutRect.left - stageRect.left;
+      const calloutRight = calloutRect.right - stageRect.left;
+      const calloutCy = calloutRect.top - stageRect.top + calloutRect.height / 2;
+
+      const isRight = c.side === "right";
+      const fromX = isRight ? cardX + cardW : cardX;
+      const fromY = cardCy;
+      const toX = isRight ? calloutLeft : calloutRight;
+      const toY = calloutCy;
+
+      nextConnectors.push({
+        id,
+        fromX,
+        fromY,
+        toX,
+        toY,
+        color: variantConfig(severityToVariant(c.severity)).color,
       });
-    }
-  }, []);
+    });
+    setConnectors(nextConnectors);
+  }, [callouts, calloutIds]);
+
+  useLayoutEffect(() => {
+    measure();
+  }, [measure, imagePreviewUrl, leftCallouts.length, rightCallouts.length]);
 
   useEffect(() => {
-    measure();
     if (typeof window === "undefined") return;
-    window.addEventListener("resize", measure);
-    const el = imgRef.current;
-    let ro: ResizeObserver | null = null;
-    if (el && typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(() => measure());
-      ro.observe(el);
+    const onResize = () => measure();
+    window.addEventListener("resize", onResize);
+
+    let stageRo: ResizeObserver | null = null;
+    let imgRo: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      stageRo = new ResizeObserver(() => measure());
+      if (stageRef.current) stageRo.observe(stageRef.current);
+      imgRo = new ResizeObserver(() => measure());
+      if (imgRef.current) imgRo.observe(imgRef.current);
     }
     return () => {
-      window.removeEventListener("resize", measure);
-      ro?.disconnect();
+      window.removeEventListener("resize", onResize);
+      stageRo?.disconnect();
+      imgRo?.disconnect();
     };
-  }, [measure, imagePreviewUrl]);
-
-  // Distribute callouts vertically, by side
-  const placed = useMemo(() => {
-    if (!imgSize.h) return [];
-    const minGap = 70;
-    const byside: Record<"left" | "right", PlayerCallout[]> = {
-      left: callouts.filter((c) => c.side === "left").sort((a, b) => a.bbox.y - b.bbox.y),
-      right: callouts.filter((c) => c.side === "right").sort((a, b) => a.bbox.y - b.bbox.y),
-    };
-    const out: { callout: PlayerCallout; anchorY: number; cardCx: number; cardCy: number; cardEdgeX: number }[] = [];
-    for (const side of ["left", "right"] as const) {
-      let lastY = -Infinity;
-      for (const c of byside[side]) {
-        let y = (c.bbox.y + c.bbox.h / 2) * imgSize.h;
-        if (y - lastY < minGap) y = lastY + minGap;
-        if (y > imgSize.h - 16) y = imgSize.h - 16;
-        const cardCx = (c.bbox.x + c.bbox.w / 2) * imgSize.w;
-        const cardCy = (c.bbox.y + c.bbox.h / 2) * imgSize.h;
-        const cardEdgeX = side === "right" ? (c.bbox.x + c.bbox.w) * imgSize.w : c.bbox.x * imgSize.w;
-        out.push({ callout: c, anchorY: y, cardCx, cardCy, cardEdgeX });
-        lastY = y;
-      }
-    }
-    return out;
-  }, [callouts, imgSize.w, imgSize.h]);
+  }, [measure]);
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      {/* Image canvas */}
+    <div
+      ref={stageRef}
+      className="relative grid gap-3"
+      style={{ gridTemplateColumns: "minmax(220px, 1fr) 2.4fr minmax(220px, 1fr)" }}
+    >
+      {/* LEFT COLUMN */}
+      <div className="flex flex-col gap-3">
+        {leftCallouts.length === 0 ? (
+          <EmptySideNote side="left" />
+        ) : (
+          leftCallouts.map((c) => {
+            const idx = callouts.indexOf(c);
+            const id = calloutIds[idx];
+            return (
+              <CalloutCard
+                key={id}
+                refCb={setCalloutRef(id)}
+                callout={c}
+              />
+            );
+          })
+        )}
+      </div>
+
+      {/* CENTER COLUMN — image with targeting frames */}
       <div
+        ref={imageWrapRef}
         className="relative"
         style={{
           background: "rgba(4,8,15,0.6)",
@@ -1011,7 +995,7 @@ function CenterCanvas({
       >
         <HudCorners color={HUD.primary} size={12} inset={6} />
 
-        {/* Top strip — readout */}
+        {/* Top strip */}
         <div
           className="flex items-center justify-between gap-3 border-b px-3 py-1.5"
           style={{
@@ -1028,20 +1012,11 @@ function CenterCanvas({
               Battlefield Scan
             </p>
           </div>
-          <div className="flex items-center gap-2 text-[10px]">
-            <span style={{ color: HUD.inkDim }}>
-              RTG{" "}
-              <span style={{ color: HUD.primary }}>
-                {result.scores.overall.toFixed(1)}
-              </span>
+          <div className="flex items-center gap-2 text-[10px]" style={{ color: HUD.inkDim }}>
+            <span>
+              FLAGS{" "}
+              <span style={{ color: HUD.primary }}>{callouts.length}</span>
             </span>
-            <span style={{ color: HUD.inkDim }}>
-              CHM{" "}
-              <span style={{ color: HUD.synergy }}>{chemistry33}/33</span>
-            </span>
-            <HudChip small variant="elite">
-              {result.recommendedTactic.style}
-            </HudChip>
           </div>
         </div>
 
@@ -1065,706 +1040,395 @@ function CenterCanvas({
             </div>
           )}
 
-          {/* Scanline over image */}
           <div className="hud-scanline pointer-events-none absolute inset-0" />
 
-          {/* SVG overlay for frames + connectors */}
-          {imgSize.w > 0 && placed.length > 0 ? (
+          {/* Targeting frames over cards */}
+          {imgSize.w > 0 && frames.length > 0 ? (
             <svg
               className="pointer-events-none absolute left-0 top-0"
               style={{ width: imgSize.w, height: imgSize.h }}
             >
-              {placed.map((p, i) => {
-                const x = p.callout.bbox.x * imgSize.w;
-                const y = p.callout.bbox.y * imgSize.h;
-                const w = p.callout.bbox.w * imgSize.w;
-                const h = p.callout.bbox.h * imgSize.h;
-                const isRight = p.callout.side === "right";
-                const variant = severityToVariant(p.callout.severity);
-                const color = variantConfig(variant).color;
-
-                const fromX = isRight ? x + w + 2 : x - 2;
-                const fromY = p.cardCy;
-                // Callout anchor (panel side) is at image edge
-                const toX = isRight ? imgSize.w - 18 : 18;
-                const toY = p.anchorY;
-
-                return (
-                  <g key={i}>
-                    <TargetingFrame
-                      x={x}
-                      y={y}
-                      w={w}
-                      h={h}
-                      color={color}
-                      chemistryRing={p.callout.severity === "info"}
-                    />
-                    <ConnectorLine
-                      fromX={fromX}
-                      fromY={fromY}
-                      toX={toX}
-                      toY={toY}
-                      color={color}
-                    />
-                  </g>
-                );
-              })}
+              {frames.map((f) => (
+                <TargetingFrame
+                  key={f.id}
+                  x={f.x}
+                  y={f.y}
+                  w={f.w}
+                  h={f.h}
+                  color={f.color}
+                  chemistryRing={f.severity === "info"}
+                />
+              ))}
             </svg>
           ) : null}
-
-          {/* Floating analysis panels on image edges */}
-          {placed.map((p, i) => {
-            const isRight = p.callout.side === "right";
-            const variant = severityToVariant(p.callout.severity);
-            const color = variantConfig(variant).color;
-            return (
-              <div
-                key={i}
-                className="absolute z-[2]"
-                style={{
-                  top: p.anchorY - 30,
-                  [isRight ? "right" : "left"]: 6,
-                  width: "30%",
-                  maxWidth: 170,
-                  minWidth: 110,
-                  background: "rgba(4,8,15,0.92)",
-                  border: `1px solid ${color}66`,
-                  boxShadow: `0 0 18px ${color}33`,
-                  clipPath:
-                    "polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)",
-                  padding: "6px 8px",
-                }}
-              >
-                <div
-                  className="flex items-center justify-between text-[8px] font-semibold uppercase tracking-[0.2em]"
-                  style={{ color }}
-                >
-                  <span>{p.callout.position}</span>
-                  <span>{p.callout.label}</span>
-                </div>
-                <p className="mt-1 text-[10px] leading-tight text-slate-200">
-                  {p.callout.note}
-                </p>
-              </div>
-            );
-          })}
         </div>
       </div>
 
-      {/* Telemetry under image */}
-      <HudPanel
-        title="Tactical Telemetry"
-        tag="LIVE"
-        icon={<HudIcon type="scan" />}
-        variant="default"
-        compact
-      >
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <HudMeter label="Overall AI Rating" value={result.scores.overall} variant="default" />
-          <HudMeter label="Chemistry" value={result.scores.chemistry} variant="synergy" />
-          <HudMeter label="Tactical Fit" value={result.scores.tacticalFit} variant="elite" />
-          <HudMeter label="Defensive Stability" value={result.scores.defense} variant={result.scores.defense < 7 ? "alert" : "default"} />
-          <HudMeter label="Press Resistance" value={(result.scores.midfield + result.scores.defense) / 2} variant="default" />
-          <HudMeter label="Upgrade Potential" value={Math.max(0, 10 - result.scores.overall + 3)} variant="upgrade" />
-        </div>
-      </HudPanel>
-    </div>
-  );
-}
-
-/* ============================================================
-   RIGHT COLUMN
-   ============================================================ */
-
-function RightColumn({
-  result,
-  overall100,
-  stage,
-}: {
-  result: ValbriSquadAdvisorResult;
-  overall100: number;
-  stage: number;
-}) {
-  return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <HudPanel
-        title="Performance Alert"
-        tag="ALERT"
-        icon={<HudIcon type="alert" />}
-        variant="alert"
-        compact
-      >
-        <p className="text-xs text-slate-200">
-          {result.summary.mainWeakness} — position stats below target
-          threshold.
-        </p>
-        <ul className="mt-2 space-y-1 text-[11px]">
-          {result.weaknesses.slice(0, 3).map((w) => (
-            <li key={w.area} className="flex items-start gap-2 text-slate-400">
-              <span style={{ color: HUD.alert }}>›</span>
-              <span>
-                <span className="text-white">{w.area}</span> · {w.reason}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </HudPanel>
-
-      <HudPanel
-        title="Connectivity Graph"
-        tag="LINKS"
-        icon={<HudIcon type="synergy" />}
-        variant="synergy"
-        compact
-      >
-        <ConnectivityGraph
-          strengths={result.strengths.length}
-          weaknesses={result.weaknesses.length}
-        />
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <HudMeter label="Attack" value={result.scores.attack} variant="default" />
-          <HudMeter label="Defense" value={result.scores.defense} variant={result.scores.defense < 7 ? "alert" : "default"} />
-        </div>
-      </HudPanel>
-
-      <HudPanel
-        title="Upgrade Pathway"
-        tag={`${overall100}/100`}
-        icon={<HudIcon type="upgrade" />}
-        variant="upgrade"
-        compact
-      >
-        <div
-          className="relative h-2 w-full"
-          style={{
-            background: "rgba(255,255,255,0.05)",
-            border: `1px solid ${HUD.primary}26`,
-          }}
-        >
-          <div
-            className="absolute left-0 top-0 h-full"
-            style={{
-              width: `${overall100}%`,
-              background: `linear-gradient(90deg, ${HUD.primary}, ${HUD.bright})`,
-              boxShadow: `0 0 10px ${HUD.primary}`,
-            }}
-          />
-        </div>
-        <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[9px]">
-          {[1, 2, 3, 4, 5].map((s) => {
-            const active = stage >= s;
+      {/* RIGHT COLUMN */}
+      <div className="flex flex-col gap-3">
+        {rightCallouts.length === 0 ? (
+          <EmptySideNote side="right" />
+        ) : (
+          rightCallouts.map((c) => {
+            const idx = callouts.indexOf(c);
+            const id = calloutIds[idx];
             return (
-              <div
-                key={s}
-                className="border px-1 py-1 font-semibold uppercase tracking-[0.18em]"
-                style={{
-                  color: active ? HUD.primary : HUD.inkMute,
-                  borderColor: active ? `${HUD.primary}55` : "rgba(255,255,255,0.08)",
-                  background: active ? `${HUD.primary}14` : "transparent",
-                  clipPath: "polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%)",
-                }}
-              >
-                S{s}
-              </div>
-            );
-          })}
-        </div>
-      </HudPanel>
-    </div>
-  );
-}
-
-/* ============================================================
-   BELOW THE FOLD
-   ============================================================ */
-
-function BelowFoldBreakdown({
-  result,
-  overall100,
-  stage,
-  chemistry33,
-}: {
-  result: ValbriSquadAdvisorResult;
-  overall100: number;
-  stage: number;
-  chemistry33: number;
-}) {
-  return (
-    <div className="space-y-3 px-3 pb-8">
-      {/* Recommended tactic */}
-      <HudPanel
-        title="Recommended Tactic"
-        tag="FIT"
-        icon={<HudIcon type="upgrade" />}
-        variant="elite"
-        compact
-      >
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-base font-bold text-white">
-            {result.recommendedTactic.style}
-          </h3>
-          <HudChip small variant="elite">
-            Best fit
-          </HudChip>
-        </div>
-        <p className="mt-1 text-xs text-slate-400">
-          {result.recommendedTactic.reason}
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <TacticStat label="Width" value={result.recommendedTactic.settings.width} />
-          <TacticStat label="Depth" value={result.recommendedTactic.settings.depth} />
-          <TacticStat label="Att. Width" value={result.recommendedTactic.settings.attackingWidth} />
-          <TacticStat label="Box Players" value={result.recommendedTactic.settings.playersInBox} />
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
-          <TacticKV label="Defensive" value={result.recommendedTactic.settings.defensiveStyle} />
-          <TacticKV label="Build-Up" value={result.recommendedTactic.settings.buildUpPlay} />
-          <TacticKV label="Chance Creation" value={result.recommendedTactic.settings.chanceCreation} />
-        </div>
-      </HudPanel>
-
-      {/* Player roles */}
-      <HudPanel
-        title="Player Roles"
-        tag="ROLES"
-        icon={<HudIcon type="target" />}
-        variant="default"
-        compact
-      >
-        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-          {result.playerInstructions.map((item) => (
-            <div
-              key={item.position}
-              className="p-2.5"
-              style={{
-                border: `1px solid ${HUD.primary}22`,
-                background: "rgba(0,0,0,0.3)",
-                clipPath:
-                  "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <HudChip small>{item.position}</HudChip>
-                <p className="text-xs font-semibold text-white">
-                  {item.instruction}
-                </p>
-              </div>
-              <p className="mt-1 text-[11px] text-slate-400">{item.reason}</p>
-            </div>
-          ))}
-        </div>
-      </HudPanel>
-
-      {/* Priorities + stages + strengths */}
-      <div className="grid gap-3 lg:grid-cols-3">
-        <HudPanel
-          title="Upgrade Priorities"
-          tag="PRIORITY"
-          icon={<HudIcon type="upgrade" />}
-          variant="upgrade"
-          compact
-        >
-          <div className="space-y-2">
-            {result.upgradePriorities.map((p) => (
-              <div
-                key={p.priority}
-                className="p-2"
-                style={{
-                  border: `1px solid ${HUD.primary}33`,
-                  background: "rgba(0,0,0,0.3)",
-                  clipPath:
-                    "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="flex h-5 w-5 items-center justify-center font-mono text-[10px] font-bold"
-                    style={{
-                      color: HUD.primary,
-                      border: `1px solid ${HUD.primary}55`,
-                      background: `${HUD.primary}10`,
-                    }}
-                  >
-                    {p.priority}
-                  </span>
-                  <p className="text-xs font-semibold text-white">{p.area}</p>
-                </div>
-                <p className="mt-1 text-[11px] text-slate-300">
-                  {p.recommendedProfile}
-                </p>
-                <p className="mt-0.5 text-[10px] text-slate-500">{p.reason}</p>
-              </div>
-            ))}
-          </div>
-        </HudPanel>
-
-        <HudPanel
-          title="Pathway Stages"
-          tag="ROUTE"
-          icon={<HudIcon type="scan" />}
-          variant="default"
-          compact
-        >
-          <div className="space-y-2 text-xs">
-            <PathwayRow
-              label="Stage 3 — Tactical"
-              summary={result.upgradePaths.basic.summary}
-              level={result.upgradePaths.basic.coinLevel}
-              done={stage >= 3}
-            />
-            <PathwayRow
-              label="Stage 4 — Economic"
-              summary={result.upgradePaths.economic.summary}
-              level={result.upgradePaths.economic.coinLevel}
-              done={stage >= 4}
-            />
-            <PathwayRow
-              label="Stage 5 — Synergy"
-              summary={result.upgradePaths.best.summary}
-              level={result.upgradePaths.best.coinLevel}
-              done={stage >= 5}
-            />
-          </div>
-        </HudPanel>
-
-        <HudPanel
-          title="Strengths"
-          tag="+"
-          icon={<HudIcon type="synergy" />}
-          variant="synergy"
-          compact
-        >
-          <div className="space-y-2 text-xs">
-            {result.strengths.map((item) => (
-              <div key={item.title}>
-                <p className="font-semibold text-white">{item.title}</p>
-                <p className="mt-0.5 text-slate-400">{item.reason}</p>
-              </div>
-            ))}
-          </div>
-        </HudPanel>
-      </div>
-
-      {/* Weaknesses */}
-      <HudPanel
-        title="Weaknesses"
-        tag="!"
-        icon={<HudIcon type="alert" />}
-        variant="alert"
-        compact
-      >
-        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-          {result.weaknesses.map((item) => (
-            <div
-              key={item.area}
-              className="p-2.5"
-              style={{
-                border: `1px solid ${HUD.alert}33`,
-                background: "rgba(0,0,0,0.3)",
-                clipPath:
-                  "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
-              }}
-            >
-              <p className="text-xs font-semibold text-white">{item.area}</p>
-              <p className="mt-1 text-[11px] text-slate-400">{item.reason}</p>
-              <p
-                className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.2em]"
-                style={{ color: HUD.alert }}
-              >
-                {item.fixType.replaceAll("_", " ")}
-              </p>
-            </div>
-          ))}
-        </div>
-      </HudPanel>
-
-      {/* Analysis report */}
-      <HudPanel
-        title="Squad Reinforcement Engine // Analysis Report"
-        tag="REPORT"
-        icon={<HudIcon type="core" />}
-        variant="elite"
-        scanline
-        compact
-      >
-        <p className="text-xs leading-relaxed text-slate-300">
-          Current squad (Rating {result.scores.overall.toFixed(1)}, Chem{" "}
-          {chemistry33}/33) exhibits high individual card ratings but{" "}
-          {result.summary.mainWeakness.toLowerCase()} introduces a positional
-          inefficiency. {result.scoreReasons.overall}{" "}
-          {result.scoreReasons.tacticalFit}
-          {result.weaknesses[0]
-            ? ` The most critical immediate upgrade is ${result.weaknesses[0].area}, as it is the dominant bottleneck to full team rating.`
-            : ""}{" "}
-          Overall pathway progress is {overall100}/100. Stages{" "}
-          {Math.min(5, stage + 1)} & {Math.min(5, stage + 2)} will specifically
-          address player-acquisition and tactical-role alignment.
-        </p>
-
-        <div className="mt-3 grid gap-2 md:grid-cols-3">
-          <ReportCard
-            heading="Form Performance"
-            body={`${result.summary.mainWeakness} needs attention.`}
-            color={HUD.alert}
-          />
-          <ReportCard
-            heading="Synergy Target"
-            body={result.summary.mainOpportunity}
-            color={HUD.synergy}
-          />
-          <ReportCard
-            heading="Potential Unlocked"
-            body={`Switch to "${result.recommendedTactic.style}".`}
-            color={HUD.primary}
-          />
-        </div>
-
-        <div
-          className="mt-3 p-3"
-          style={{
-            border: `1px solid ${HUD.primary}44`,
-            background: `${HUD.primary}10`,
-            clipPath:
-              "polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)",
-          }}
-        >
-          <HudHeading color={HUD.primary}>Final Coach Note</HudHeading>
-          <p className="mt-1.5 text-xs text-slate-200">{result.finalCoachNote}</p>
-        </div>
-      </HudPanel>
-    </div>
-  );
-}
-
-/* ============================================================
-   Subcomponents
-   ============================================================ */
-
-function TacticStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div
-      className="px-2 py-1.5 text-center"
-      style={{
-        border: `1px solid ${HUD.primary}22`,
-        background: "rgba(0,0,0,0.3)",
-      }}
-    >
-      <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p
-        className="font-mono text-base font-bold tabular-nums"
-        style={{ color: HUD.primary, textShadow: `0 0 6px ${HUD.primary}33` }}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function TacticKV({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      className="px-2 py-1.5"
-      style={{
-        border: `1px solid ${HUD.primary}22`,
-        background: "rgba(0,0,0,0.3)",
-      }}
-    >
-      <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className="mt-0.5 truncate text-xs font-semibold text-white">{value}</p>
-    </div>
-  );
-}
-
-function PathwayRow({
-  label,
-  summary,
-  level,
-  done,
-}: {
-  label: string;
-  summary: string;
-  level: string;
-  done: boolean;
-}) {
-  return (
-    <div
-      className="px-2 py-1.5"
-      style={{
-        border: `1px solid ${done ? HUD.primary + "55" : "rgba(255,255,255,0.08)"}`,
-        background: done ? `${HUD.primary}10` : "rgba(0,0,0,0.3)",
-      }}
-    >
-      <div className="flex items-center justify-between">
-        <p
-          className="text-[10px] font-semibold uppercase tracking-[0.2em]"
-          style={{ color: done ? HUD.primary : HUD.inkDim }}
-        >
-          {label}
-        </p>
-        <span
-          className="border px-1.5 py-0.5 text-[8px] uppercase tracking-[0.18em]"
-          style={{ borderColor: "rgba(255,255,255,0.1)", color: HUD.inkDim }}
-        >
-          {level}
-        </span>
-      </div>
-      <p className="mt-1 text-[10px] text-slate-400">{summary}</p>
-    </div>
-  );
-}
-
-function ReportCard({
-  heading,
-  body,
-  color,
-}: {
-  heading: string;
-  body: string;
-  color: string;
-}) {
-  return (
-    <div
-      className="p-2.5"
-      style={{
-        border: `1px solid ${color}44`,
-        background: "rgba(0,0,0,0.3)",
-        clipPath:
-          "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
-      }}
-    >
-      <p
-        className="text-[9px] font-semibold uppercase tracking-[0.25em]"
-        style={{ color }}
-      >
-        {heading}
-      </p>
-      <p className="mt-1 text-xs text-slate-200">{body}</p>
-    </div>
-  );
-}
-
-function ConnectivityGraph({
-  strengths,
-  weaknesses,
-}: {
-  strengths: number;
-  weaknesses: number;
-}) {
-  const total = 11;
-  const radius = 56;
-  const cx = 75;
-  const cy = 75;
-
-  const nodes = Array.from({ length: total }, (_, i) => {
-    const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
-    return {
-      x: cx + radius * Math.cos(angle),
-      y: cy + radius * Math.sin(angle),
-      weak: i < weaknesses,
-      strong: i >= total - strengths,
-    };
-  });
-
-  return (
-    <div className="flex items-center justify-center">
-      <svg width="150" height="150" viewBox="0 0 150 150">
-        <defs>
-          <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={HUD.synergy} stopOpacity="0.5" />
-            <stop offset="100%" stopColor={HUD.synergy} stopOpacity="0" />
-          </radialGradient>
-        </defs>
-
-        <circle cx={cx} cy={cy} r={radius + 6} fill="url(#coreGlow)" />
-
-        {/* Rotating outer ring */}
-        <g className="hud-sweep" style={{ transformOrigin: `${cx}px ${cy}px` }}>
-          {[0, 90, 180, 270].map((deg) => {
-            const rad = (deg * Math.PI) / 180;
-            const x1 = cx + (radius + 8) * Math.cos(rad);
-            const y1 = cy + (radius + 8) * Math.sin(rad);
-            const x2 = cx + (radius + 12) * Math.cos(rad);
-            const y2 = cy + (radius + 12) * Math.sin(rad);
-            return (
-              <line
-                key={deg}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke={HUD.synergy}
-                strokeWidth={1.5}
-                opacity={0.7}
+              <CalloutCard
+                key={id}
+                refCb={setCalloutRef(id)}
+                callout={c}
               />
             );
-          })}
-        </g>
-
-        {/* Spokes */}
-        {nodes.map((n, i) => (
-          <line
-            key={`s-${i}`}
-            x1={cx}
-            y1={cy}
-            x2={n.x}
-            y2={n.y}
-            stroke={n.weak ? HUD.alert : HUD.synergy}
-            strokeOpacity={n.weak ? 0.5 : 0.3}
-            strokeWidth={1}
-          />
-        ))}
-
-        {/* Cross-links */}
-        {nodes.map((n, i) =>
-          nodes
-            .slice(i + 1)
-            .map((m, j) =>
-              (i + j) % 2 === 0 ? (
-                <line
-                  key={`l-${i}-${j}`}
-                  x1={n.x}
-                  y1={n.y}
-                  x2={m.x}
-                  y2={m.y}
-                  stroke={HUD.synergy}
-                  strokeOpacity={0.08}
-                  strokeWidth={1}
-                />
-              ) : null
-            )
+          })
         )}
+      </div>
 
-        {/* Center */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={6}
-          fill={HUD.synergy}
-          style={{ filter: `drop-shadow(0 0 6px ${HUD.synergy})` }}
-        />
+      {/* GLOBAL CONNECTOR OVERLAY (spans all columns) */}
+      {stageSize.w > 0 && connectors.length > 0 ? (
+        <svg
+          className="pointer-events-none absolute left-0 top-0 z-[3]"
+          style={{ width: stageSize.w, height: stageSize.h }}
+        >
+          {connectors.map((c) => (
+            <ConnectorLine
+              key={c.id}
+              fromX={c.fromX}
+              fromY={c.fromY}
+              toX={c.toX}
+              toY={c.toY}
+              color={c.color}
+            />
+          ))}
+        </svg>
+      ) : null}
+    </div>
+  );
+}
 
-        {/* Nodes */}
-        {nodes.map((n, i) => (
-          <circle
-            key={`n-${i}`}
-            cx={n.x}
-            cy={n.y}
-            r={n.weak ? 4 : 3.5}
-            fill={n.weak ? HUD.alert : n.strong ? HUD.synergy : "#94a3b8"}
+function EmptySideNote({ side }: { side: "left" | "right" }) {
+  return (
+    <div
+      className="flex items-center justify-center px-3 py-6 text-center text-[10px] uppercase tracking-[0.25em]"
+      style={{
+        color: HUD.inkMute,
+        border: `1px dashed ${HUD.primary}22`,
+        background: "rgba(0,0,0,0.25)",
+        clipPath:
+          "polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)",
+      }}
+    >
+      No {side}-side flags
+    </div>
+  );
+}
+
+/* ============================================================
+   CALLOUT CARD — per-player diagnostic + replacement profile
+   ============================================================ */
+
+function CalloutCard({
+  callout,
+  refCb,
+}: {
+  callout: PlayerCallout;
+  refCb: (el: HTMLDivElement | null) => void;
+}) {
+  const variant = severityToVariant(callout.severity);
+  const color = variantConfig(variant).color;
+
+  return (
+    <div
+      ref={refCb}
+      className="relative"
+      style={{
+        background: "rgba(4,8,15,0.92)",
+        border: `1px solid ${color}66`,
+        boxShadow: `0 0 18px ${color}22`,
+        clipPath:
+          "polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)",
+      }}
+    >
+      <div
+        className="flex items-center justify-between gap-2 border-b px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.22em]"
+        style={{ color, borderColor: `${color}33` }}
+      >
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-flex h-4 w-4 items-center justify-center"
             style={{
-              filter: n.weak
-                ? `drop-shadow(0 0 4px ${HUD.alert})`
-                : n.strong
-                ? `drop-shadow(0 0 4px ${HUD.synergy})`
-                : undefined,
+              border: `1px solid ${color}88`,
+              background: `${color}18`,
             }}
-          />
+          >
+            {callout.position}
+          </span>
+          {callout.label}
+        </span>
+        <span style={{ color: HUD.inkMute }}>{callout.severity}</span>
+      </div>
+
+      <div className="space-y-2 px-3 py-2.5">
+        <p className="text-[11px] leading-snug text-slate-200">
+          {callout.note}
+        </p>
+
+        {callout.recommendedReplacement ? (
+          <div
+            className="space-y-1 px-2.5 py-2"
+            style={{
+              border: `1px solid ${HUD.primary}33`,
+              background: `${HUD.primary}08`,
+              clipPath:
+                "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+            }}
+          >
+            <p
+              className="text-[9px] font-semibold uppercase tracking-[0.25em]"
+              style={{ color: HUD.primary }}
+            >
+              Replacement Profile
+            </p>
+            <p className="text-[11px] font-semibold text-white">
+              {callout.recommendedReplacement.profile}
+            </p>
+            <p className="text-[10px] leading-snug text-slate-400">
+              {callout.recommendedReplacement.reason}
+            </p>
+          </div>
+        ) : (
+          <p
+            className="text-[9px] uppercase tracking-[0.25em]"
+            style={{ color: HUD.inkMute }}
+          >
+            Tactical fix — no replacement needed
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   CHAT BOT
+   ============================================================ */
+
+function ChatBot({
+  analysis,
+  platform,
+  divisionLevel,
+  goal,
+  currentTactics,
+}: {
+  analysis: ValbriSquadAdvisorResult;
+  platform: Platform;
+  divisionLevel: DivisionLevel;
+  goal: Goal;
+  currentTactics: string;
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, isSending]);
+
+  async function sendMessage(content: string) {
+    const trimmed = content.trim();
+    if (!trimmed || isSending) return;
+
+    const nextMessages: ChatMessage[] = [
+      ...messages,
+      { role: "user", content: trimmed },
+    ];
+    setMessages(nextMessages);
+    setInput("");
+    setIsSending(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/ai/squad-chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          messages: nextMessages,
+          analysis,
+          platform,
+          divisionLevel,
+          goal,
+          currentTactics,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success || !data?.reply) {
+        throw new Error(
+          data?.error ?? `Chat request failed (HTTP ${response.status}).`
+        );
+      }
+      setMessages([
+        ...nextMessages,
+        { role: "assistant", content: String(data.reply) },
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Chat failed.");
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    sendMessage(input);
+  }
+
+  const suggestions = [
+    "What tactic best fits my squad?",
+    "Which player should I upgrade first?",
+    "Best instructions for the flagged players?",
+  ];
+
+  return (
+    <HudPanel
+      title="Tactical Chat"
+      tag="CHAT"
+      icon={<HudIcon type="core" />}
+      variant="elite"
+      compact
+    >
+      <p className="text-[11px] text-slate-400">
+        The engine has your squad callouts in context. Ask about tactics,
+        formations, upgrade order, or anything else about this squad.
+      </p>
+
+      <div
+        ref={scrollRef}
+        className="hud-scroll mt-3 max-h-[420px] min-h-[200px] space-y-2 overflow-y-auto px-1 py-2"
+        style={{
+          border: `1px solid ${HUD.primary}22`,
+          background: "rgba(0,0,0,0.35)",
+        }}
+      >
+        {messages.length === 0 && !isSending ? (
+          <div className="px-3 py-6 text-center text-[11px] text-slate-500">
+            No messages yet. Try one of the prompts below or type your own.
+          </div>
+        ) : null}
+
+        {messages.map((m, i) => (
+          <ChatBubble key={i} role={m.role} content={m.content} />
         ))}
-      </svg>
+
+        {isSending ? (
+          <div className="flex items-center gap-2 px-3 py-2 text-[11px]" style={{ color: HUD.primary }}>
+            <RadarRing size={14} />
+            <span>Engine thinking…</span>
+          </div>
+        ) : null}
+      </div>
+
+      {messages.length === 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => sendMessage(s)}
+              disabled={isSending}
+              className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition disabled:opacity-50"
+              style={{
+                color: HUD.primary,
+                border: `1px solid ${HUD.primary}44`,
+                background: `${HUD.primary}08`,
+                clipPath:
+                  "polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%)",
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <form onSubmit={handleSubmit} className="mt-3 flex items-stretch gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask the engine about your squad…"
+          disabled={isSending}
+          className="block w-full bg-black/40 px-3 py-2 text-xs text-white placeholder:text-slate-600 disabled:opacity-50"
+          style={{
+            border: `1px solid ${HUD.primary}33`,
+            clipPath:
+              "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+          }}
+        />
+        <HudButton
+          variant="primary"
+          type="submit"
+          disabled={isSending || input.trim().length === 0}
+        >
+          <HudIcon type="target" width={12} height={12} />
+          <span>Send</span>
+        </HudButton>
+      </form>
+
+      {error ? (
+        <div
+          className="mt-2 px-3 py-2 text-[11px]"
+          style={{
+            color: HUD.critical,
+            border: `1px solid ${HUD.critical}55`,
+            background: `${HUD.critical}10`,
+            clipPath:
+              "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+          }}
+        >
+          <span className="font-semibold uppercase tracking-[0.2em]">
+            Chat error ·{" "}
+          </span>
+          {error}
+        </div>
+      ) : null}
+    </HudPanel>
+  );
+}
+
+function ChatBubble({
+  role,
+  content,
+}: {
+  role: "user" | "assistant";
+  content: string;
+}) {
+  const isUser = role === "user";
+  const color = isUser ? HUD.synergy : HUD.primary;
+  return (
+    <div
+      className={`flex ${isUser ? "justify-end" : "justify-start"} px-2`}
+    >
+      <div
+        className="max-w-[80%] whitespace-pre-wrap px-3 py-2 text-[11px] leading-snug text-slate-100"
+        style={{
+          border: `1px solid ${color}44`,
+          background: `${color}10`,
+          clipPath: isUser
+            ? "polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px)"
+            : "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
+        }}
+      >
+        <p
+          className="mb-1 text-[8px] font-semibold uppercase tracking-[0.3em]"
+          style={{ color }}
+        >
+          {isUser ? "You" : "Engine"}
+        </p>
+        {content}
+      </div>
     </div>
   );
 }
