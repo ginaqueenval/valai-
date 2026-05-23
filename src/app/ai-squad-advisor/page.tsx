@@ -422,7 +422,7 @@ function IntakePanel(props: {
           <HudHeading className="mb-2">Current Tactics · Optional</HudHeading>
           <textarea
             value={currentTactics}
-            onChange={(event) => setCurrentTactics(event.target.value)}
+            onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setCurrentTactics(event.target.value)}
             className="block min-h-20 w-full bg-black/40 px-3 py-2 text-xs text-white placeholder:text-slate-600"
             placeholder="4-3-3(4) · Balanced · 58 depth · Direct Passing"
             style={{
@@ -488,7 +488,7 @@ function HudSelect({
     <div className="relative">
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
         className="block w-full appearance-none bg-black/40 px-3 py-2.5 pr-8 text-xs text-white"
         style={{
           border: `1px solid ${HUD.primary}33`,
@@ -1357,7 +1357,7 @@ function ChatBot({
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
           placeholder="Ask the engine about your squad…"
           disabled={isSending}
           className="block w-full bg-black/40 px-3 py-2 text-xs text-white placeholder:text-slate-600 disabled:opacity-50"
