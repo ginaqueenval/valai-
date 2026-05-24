@@ -11,12 +11,14 @@ import {
   type ClassifierInput,
   type ClassifierResult,
 } from "./classifier";
+import { extractCardFromImage, type CardProfile } from "./cardExtractor";
 import { ensureSchema } from "../db/init";
 import { sql } from "../db/sql";
 
-const TARGET_SUBREDDITS = ["EASportsFC", "FIFA"];
+const TARGET_SUBREDDITS = ["EASportsFC", "FIFA", "fut", "FC_26", "fut_evos"];
 const MAX_ITEMS_PER_SUBREDDIT = 80;
 const AGGREGATE_LOOKBACK_DAYS = 14;
+const MAX_CARD_EXTRACTIONS_PER_RUN = 20;
 
 export type PipelineReport = {
   fetched: number;
@@ -24,6 +26,7 @@ export type PipelineReport = {
   classified: number;
   entities: number;
   aggregates: number;
+  cardsExtracted: number;
   errors: string[];
 };
 
@@ -218,6 +221,83 @@ async function rebuildAggregates(): Promise<number> {
   return inserted;
 }
 
+async function extractAndStoreCards(
+  allItems: RedditItem[],
+  externalIdToSourceId: Map<string, bigint>
+): Promise<number> {
+  // Only image posts, ordered by score descending, capped per run.
+  const imagePosts = allItems
+    .filter(
+      (it) =>
+        it.source_type === "reddit_post" &&
+        it.imageUrl &&
+        externalIdToSourceId.has(it.external_id)
+    )
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_CARD_EXTRACTIONS_PER_RUN);
+
+  if (imagePosts.length === 0) return 0;
+
+  const db = sql();
+  let stored = 0;
+
+  for (const post of imagePosts) {
+    const imageUrl = post.imageUrl!;
+
+    // Skip images we've already processed.
+    const existing = (await db.query(
+      `SELECT 1 FROM card_profiles WHERE image_url = $1 LIMIT 1`,
+      [imageUrl]
+    )) as unknown[];
+    if (existing.length > 0) continue;
+
+    let card: CardProfile | null = null;
+    try {
+      card = await extractCardFromImage(imageUrl);
+    } catch (err) {
+      console.error("card extraction error", imageUrl, err);
+      continue;
+    }
+
+    if (!card) continue;
+
+    const sourceId = externalIdToSourceId.get(post.external_id);
+    try {
+      await db.query(
+        `INSERT INTO card_profiles
+           (source_id, image_url, player_name, normalized_name, card_type,
+            position, overall_rating, pac, sho, pas, dri, def_stat, phy,
+            nation, club, league)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         ON CONFLICT (image_url) DO NOTHING`,
+        [
+          sourceId?.toString() ?? null,
+          imageUrl,
+          card.player_name,
+          card.normalized_name,
+          card.card_type,
+          card.position,
+          card.overall_rating,
+          card.pac,
+          card.sho,
+          card.pas,
+          card.dri,
+          card.def_stat,
+          card.phy,
+          card.nation,
+          card.club,
+          card.league,
+        ]
+      );
+      stored += 1;
+    } catch (err) {
+      console.error("card_profiles insert failed", imageUrl, err);
+    }
+  }
+
+  return stored;
+}
+
 export async function runPipeline(): Promise<PipelineReport> {
   const report: PipelineReport = {
     fetched: 0,
@@ -225,6 +305,7 @@ export async function runPipeline(): Promise<PipelineReport> {
     classified: 0,
     entities: 0,
     aggregates: 0,
+    cardsExtracted: 0,
     errors: [],
   };
 
@@ -261,6 +342,12 @@ export async function runPipeline(): Promise<PipelineReport> {
   );
   report.classified = classified;
   report.entities = entities;
+
+  try {
+    report.cardsExtracted = await extractAndStoreCards(allItems, externalIdToSourceId);
+  } catch (err) {
+    report.errors.push(`cardExtraction: ${(err as Error).message}`);
+  }
 
   try {
     report.aggregates = await rebuildAggregates();
