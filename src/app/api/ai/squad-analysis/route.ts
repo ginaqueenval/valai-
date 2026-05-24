@@ -4,6 +4,36 @@ import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import { squadAdvisorMasterPrompt } from "@/lib/ai/squadAdvisorMasterPrompt";
 import type { ValbriSquadAdvisorResult } from "@/lib/ai/valbriSquadAdvisorSchema";
+import { lookupProfileSignal } from "@/lib/community/lookup";
+
+async function enrichWithCommunitySignal(
+  result: ValbriSquadAdvisorResult
+): Promise<void> {
+  const callouts = result.playerCallouts ?? [];
+  if (callouts.length === 0) return;
+
+  // Only callouts with a replacement profile get enriched.
+  const tasks = callouts.map(async (callout) => {
+    const replacement = callout.recommendedReplacement;
+    if (!replacement?.profile) return;
+    try {
+      const signal = await lookupProfileSignal(replacement.profile, "player_profile");
+      if (signal) {
+        replacement.communitySignal = {
+          positiveCount: signal.positiveCount,
+          negativeCount: signal.negativeCount,
+          bucket: signal.bucket,
+          topQuote: signal.topQuote,
+          matchedTerm: signal.matchedTerm,
+        };
+      }
+    } catch (err) {
+      console.error("community signal lookup failed", err);
+    }
+  });
+
+  await Promise.all(tasks);
+}
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -218,6 +248,8 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
+
+    await enrichWithCommunitySignal(parsed);
 
     return NextResponse.json({
       success: true,

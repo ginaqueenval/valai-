@@ -13,6 +13,7 @@ import {
 } from "react";
 import type {
   ChatMessage,
+  CommunitySignal,
   DivisionLevel,
   Goal,
   Platform,
@@ -1194,6 +1195,11 @@ function CalloutCard({
             <p className="text-[10px] leading-snug text-slate-400">
               {callout.recommendedReplacement.reason}
             </p>
+            {callout.recommendedReplacement.communitySignal ? (
+              <CommunitySignalRow
+                signal={callout.recommendedReplacement.communitySignal}
+              />
+            ) : null}
           </div>
         ) : (
           <p
@@ -1429,6 +1435,50 @@ function ChatBubble({
         </p>
         {content}
       </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   COMMUNITY SIGNAL ROW
+   ============================================================ */
+
+function CommunitySignalRow({ signal }: { signal: CommunitySignal }) {
+  const bucketColor =
+    signal.bucket === "negative"
+      ? HUD.critical
+      : signal.bucket === "mixed"
+        ? HUD.alert
+        : HUD.synergy;
+  const bucketLabel =
+    signal.bucket === "negative"
+      ? "Community: avoid"
+      : signal.bucket === "mixed"
+        ? "Community: mixed"
+        : "Community: backed";
+
+  return (
+    <div
+      className="mt-1.5 space-y-1 border-l-2 px-2 py-1.5"
+      style={{ borderColor: bucketColor, background: `${bucketColor}08` }}
+    >
+      <div className="flex items-center justify-between text-[8px] font-semibold uppercase tracking-[0.22em]">
+        <span style={{ color: bucketColor }}>{bucketLabel}</span>
+        <span style={{ color: HUD.inkMute }}>
+          +{signal.positiveCount} / -{signal.negativeCount}
+        </span>
+      </div>
+      {signal.topQuote ? (
+        <p
+          className="text-[10px] italic leading-snug text-slate-300"
+          style={{ borderLeft: `1px solid ${bucketColor}55`, paddingLeft: 6 }}
+        >
+          &ldquo;{signal.topQuote.length > 180 ? `${signal.topQuote.slice(0, 180)}…` : signal.topQuote}&rdquo;
+        </p>
+      ) : null}
+      <p className="text-[9px]" style={{ color: HUD.inkMute }}>
+        Matched: {signal.matchedTerm}
+      </p>
     </div>
   );
 }

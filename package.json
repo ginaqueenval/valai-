@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/genai": "latest",
+    "@neondatabase/serverless": "latest",
     "next": "latest",
     "react": "19.1.0",
     "react-dom": "19.1.0"
