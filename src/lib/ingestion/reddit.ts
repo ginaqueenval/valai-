@@ -15,6 +15,7 @@ export type RedditItem = {
   author: string | null;
   score: number;
   created_utc: Date;
+  imageUrl?: string | null;
 };
 
 const USER_AGENT = process.env.REDDIT_USER_AGENT ?? "valbri-fc/1.0";
@@ -62,6 +63,13 @@ type RedditListingChild = {
     created_utc?: number;
     stickied?: boolean;
     over_18?: boolean;
+    url?: string;
+    post_hint?: string;
+    preview?: {
+      images?: Array<{
+        source?: { url?: string };
+      }>;
+    };
   };
 };
 
@@ -74,6 +82,17 @@ type RedditListing = {
 function permalinkUrl(permalink?: string): string {
   if (!permalink) return "";
   return permalink.startsWith("http") ? permalink : `https://www.reddit.com${permalink}`;
+}
+
+function extractImageUrl(data: RedditListingChild["data"]): string | null {
+  // Prefer the original image URL when post_hint signals an image post.
+  if (data.post_hint === "image" && data.url) return data.url;
+  // Reddit serves preview images with HTML-escaped ampersands — unescape them.
+  const previewUrl = data.preview?.images?.[0]?.source?.url;
+  if (previewUrl) return previewUrl.replace(/&amp;/g, "&");
+  // Fallback: direct URL that looks like an image file.
+  if (data.url && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(data.url)) return data.url;
+  return null;
 }
 
 export async function fetchSubredditPosts(
@@ -100,6 +119,7 @@ export async function fetchSubredditPosts(
       author: c.data.author ?? null,
       score: c.data.score ?? 0,
       created_utc: c.data.created_utc ? new Date(c.data.created_utc * 1000) : new Date(),
+      imageUrl: extractImageUrl(c.data),
     }))
     .filter((p) => p.body.length > 0);
 }
