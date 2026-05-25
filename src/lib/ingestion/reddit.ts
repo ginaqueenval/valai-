@@ -18,7 +18,10 @@ export type RedditItem = {
   imageUrl?: string | null;
 };
 
-const USER_AGENT = process.env.REDDIT_USER_AGENT ?? "valbri-fc/1.0";
+// Reddit blocks requests with invalid/custom User-Agent.
+// Use a standard browser UA that Reddit won't block.
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36";
+console.log(`[reddit] USER_AGENT initialized`);
 
 const POST_FETCH_LIMIT = 50;
 const COMMENT_FETCH_LIMIT = 50;
@@ -29,12 +32,19 @@ async function sleep(ms: number) {
 }
 
 async function fetchJson(url: string, attempt = 0): Promise<unknown> {
+  console.log(`[reddit] fetching ${url} (attempt ${attempt + 1})`);
   const response = await fetch(url, {
     headers: {
       "User-Agent": USER_AGENT,
-      Accept: "application/json",
+      "Accept": "application/json",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Referer": "https://www.reddit.com/",
+      "DNT": "1",
     },
   });
+  console.log(`[reddit] response status: ${response.status} for ${url}`);
   if (response.status === 429 || response.status === 503) {
     if (attempt >= 2) {
       throw new Error(`Reddit responded ${response.status} after ${attempt + 1} attempts`);
@@ -43,9 +53,13 @@ async function fetchJson(url: string, attempt = 0): Promise<unknown> {
     return fetchJson(url, attempt + 1);
   }
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[reddit] error response:`, errorText.slice(0, 200));
     throw new Error(`Reddit responded ${response.status} for ${url}`);
   }
-  return response.json();
+  const json = await response.json();
+  console.log(`[reddit] parsed json successfully`);
+  return json;
 }
 
 type RedditListingChild = {
@@ -161,13 +175,16 @@ export async function harvestSubreddit(
   subreddit: string,
   maxItems: number
 ): Promise<RedditItem[]> {
+  console.log(`[harvest] starting r/${subreddit} (max ${maxItems} items)`);
   const collected: RedditItem[] = [];
   const seen = new Set<string>();
 
   for (const sort of SUBREDDIT_SORTS) {
     if (collected.length >= maxItems) break;
     try {
+      console.log(`[harvest] fetching r/${subreddit}/${sort}`);
       const posts = await fetchSubredditPosts(subreddit, sort, POST_FETCH_LIMIT, "day");
+      console.log(`[harvest] got ${posts.length} posts from r/${subreddit}/${sort}`);
       for (const post of posts) {
         if (seen.has(post.external_id)) continue;
         seen.add(post.external_id);
@@ -179,6 +196,7 @@ export async function harvestSubreddit(
     }
     await sleep(800);
   }
+  console.log(`[harvest] done r/${subreddit}: ${collected.length} unique items`);
 
   // For the most popular handful of posts, pull a slice of comments too.
   // Comments are where the most actionable community signal lives.

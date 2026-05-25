@@ -6,11 +6,13 @@
 
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db/sql";
+import { ensureSchema } from "@/lib/db/init";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   try {
+    await ensureSchema();
     const db = sql();
 
     const [sourcesRows, cardsRows, aggregatesRows, recentCardsRows, topEntitiesRows] =

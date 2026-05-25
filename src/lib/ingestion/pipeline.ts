@@ -38,6 +38,7 @@ export type PipelineReport = {
 
 async function insertSources(items: TwitterItem[]): Promise<Map<string, bigint>> {
   // Map of external_id -> id (so we can attach classifications + entities).
+  console.log(`[sources] inserting ${items.length} items`);
   const db = sql();
   const out = new Map<string, bigint>();
   if (items.length === 0) return out;
@@ -71,6 +72,7 @@ async function insertSources(items: TwitterItem[]): Promise<Map<string, bigint>>
       console.error("insertSources row failed", it.external_id, err);
     }
   }
+  console.log(`[sources] inserted ${out.size} rows`);
   return out;
 }
 
@@ -305,6 +307,7 @@ async function extractAndStoreCards(
 }
 
 export async function runPipeline(): Promise<PipelineReport> {
+  console.log("[pipeline] starting ingest pipeline");
   const report: PipelineReport = {
     fetched: 0,
     inserted: 0,
@@ -315,16 +318,31 @@ export async function runPipeline(): Promise<PipelineReport> {
     errors: [],
   };
 
-  await ensureSchema();
+  try {
+    await ensureSchema();
+    console.log("[pipeline] schema initialized");
+  } catch (err) {
+    console.error("[pipeline] schema init failed", err);
+    report.errors.push(`schema: ${(err as Error).message}`);
+    return report;
+  }
 
+  console.log(`[pipeline] harvesting from Twitter with ${TWITTER_QUERIES.length} queries`);
   let allItems: TwitterItem[] = [];
   try {
     allItems = await harvestTwitter(TWITTER_QUERIES, MAX_ITEMS_PER_QUERY);
+    console.log(`[pipeline] Twitter yielded ${allItems.length} items`);
   } catch (err) {
-    report.errors.push(`harvestTwitter: ${(err as Error).message}`);
+    const msg = `harvestTwitter: ${(err as Error).message}`;
+    console.error(`[pipeline] ${msg}`);
+    report.errors.push(msg);
   }
   report.fetched = allItems.length;
-  if (allItems.length === 0) return report;
+  console.log(`[pipeline] total fetched: ${allItems.length}`);
+  if (allItems.length === 0) {
+    console.warn("[pipeline] no items fetched, aborting");
+    return report;
+  }
 
   const externalIdToItem = new Map(allItems.map((it) => [it.external_id, it]));
   const externalIdToSourceId = await insertSources(allItems);
