@@ -186,3 +186,91 @@ export async function classifyItems(
 }
 
 export const classifierModelId = CLASSIFIER_MODEL;
+
+export type StructuredCardAnalysis = {
+  best_playstyles: Record<string, string> | null;
+  weak_points: string[] | null;
+  strengths: string[] | null;
+  recommended_chemstyle: string | null;
+};
+
+/**
+ * Analyze community quotes about a player to extract structured card insights.
+ * Used after aggregation to provide actionable details for team building.
+ */
+export async function analyzePlayerProfile(
+  playerName: string,
+  positiveQuote: string | null,
+  negativeQuote: string | null
+): Promise<StructuredCardAnalysis> {
+  if (!positiveQuote && !negativeQuote) {
+    return {
+      best_playstyles: null,
+      weak_points: null,
+      strengths: null,
+      recommended_chemstyle: null,
+    };
+  }
+
+  const quoteText = [positiveQuote, negativeQuote].filter(Boolean).join("\n\n");
+
+  const userText = `
+Player: ${playerName}
+
+Community feedback:
+${quoteText}
+
+Extract structured insights in JSON format:
+- best_playstyles: object mapping positions (e.g., "CDM", "CM", "ST") to recommended playstyle descriptions
+- weak_points: array of specific weaknesses mentioned
+- strengths: array of specific strengths mentioned
+- recommended_chemstyle: single recommended chemistry style (e.g., "Engine", "Maestro"), or null if not mentioned
+
+Respond with ONLY valid JSON. Do not invent details not in the text.
+`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: CLASSIFIER_MODEL,
+      contents: [{ role: "user", parts: [{ text: userText }] }],
+      config: {
+        responseMimeType: "application/json",
+        maxOutputTokens: 1000,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+
+    const raw = (response.text ?? "").trim();
+    if (!raw) {
+      return {
+        best_playstyles: null,
+        weak_points: null,
+        strengths: null,
+        recommended_chemstyle: null,
+      };
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      best_playstyles: parsed.best_playstyles ?? null,
+      weak_points: Array.isArray(parsed.weak_points)
+        ? parsed.weak_points.filter((x: unknown) => typeof x === "string")
+        : null,
+      strengths: Array.isArray(parsed.strengths)
+        ? parsed.strengths.filter((x: unknown) => typeof x === "string")
+        : null,
+      recommended_chemstyle:
+        typeof parsed.recommended_chemstyle === "string"
+          ? parsed.recommended_chemstyle
+          : null,
+    };
+  } catch (err) {
+    console.error(`[classifier] analyzePlayerProfile failed for ${playerName}:`, err);
+    return {
+      best_playstyles: null,
+      weak_points: null,
+      strengths: null,
+      recommended_chemstyle: null,
+    };
+  }
+}

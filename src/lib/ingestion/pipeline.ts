@@ -8,8 +8,10 @@ import { harvestSubreddit, type RedditItem } from "./reddit";
 import {
   classifierModelId,
   classifyItems,
+  analyzePlayerProfile,
   type ClassifierInput,
   type ClassifierResult,
+  type StructuredCardAnalysis,
 } from "./classifier";
 import { extractCardFromImage, type CardProfile } from "./cardExtractor";
 import { ensureSchema } from "../db/init";
@@ -202,12 +204,28 @@ async function rebuildAggregates(): Promise<number> {
 
   let inserted = 0;
   for (const r of rows) {
+    let analysis: StructuredCardAnalysis | null = null;
+
+    // For player profiles, analyze quotes to extract structured insights
+    if (r.entity_type === "player_profile") {
+      console.log(
+        `[pipeline] analyzing player profile: ${r.display_value}`
+      );
+      analysis = await analyzePlayerProfile(
+        r.display_value,
+        r.top_positive_quote ? r.top_positive_quote.slice(0, 400) : null,
+        r.top_negative_quote ? r.top_negative_quote.slice(0, 400) : null
+      );
+    }
+
     await db.query(
       `INSERT INTO entity_aggregates
          (entity_type, normalized_value, display_value,
           positive_count, negative_count,
-          top_positive_quote, top_negative_quote, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+          top_positive_quote, top_negative_quote,
+          best_playstyles, weak_points, strengths, recommended_chemstyle,
+          updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
       [
         r.entity_type,
         r.normalized_value,
@@ -216,6 +234,10 @@ async function rebuildAggregates(): Promise<number> {
         Number(r.negative_count) || 0,
         r.top_positive_quote ? r.top_positive_quote.slice(0, 400) : null,
         r.top_negative_quote ? r.top_negative_quote.slice(0, 400) : null,
+        analysis?.best_playstyles ? JSON.stringify(analysis.best_playstyles) : null,
+        analysis?.weak_points ?? null,
+        analysis?.strengths ?? null,
+        analysis?.recommended_chemstyle ?? null,
       ]
     );
     inserted += 1;

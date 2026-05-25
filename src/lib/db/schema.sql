@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS entity_aggregates (
   negative_count INTEGER NOT NULL DEFAULT 0,
   top_positive_quote TEXT,
   top_negative_quote TEXT,
+  best_playstyles JSONB,
+  weak_points TEXT[],
+  strengths TEXT[],
+  recommended_chemstyle TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (entity_type, normalized_value)
 );
