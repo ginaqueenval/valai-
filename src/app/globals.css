@@ -3,191 +3,102 @@
 @tailwind utilities;
 
 :root {
-  --background: #04080F;
-  --foreground: #E7F8F4;
-  --hud-primary: #3DDBC1;
-  --hud-bright: #5CFCE6;
-  --hud-alert: #FFB860;
-  --hud-critical: #FF6B6B;
-  --hud-synergy: #A4F26B;
-  --hud-elite: #B388FF;
+  --bg: #070A0F;
+  --card: #0B1220;
+  --elev: #11192B;
+  --text: #E7EDF7;
+  --muted: #9AA7BD;
+  --accent: #00FF9A;
+  --accent-hover: #00D47E;
 }
 
-html {
-  scroll-behavior: smooth;
-}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "SF Pro Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "ss01", "cv11";
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-* {
-  box-sizing: border-box;
+@keyframes pulse-dot {
+  0%   { transform: scale(1);   opacity: 1; }
+  70%, 100% { transform: scale(2.4); opacity: 0; }
 }
+.animate-pulse-dot { animation: pulse-dot 1.8s cubic-bezier(0.4,0,0.6,1) infinite; }
 
-/* ===== HUD animations ===== */
-
-@keyframes hud-breathe {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+.animate-fade-in { animation: fade-in 0.42s cubic-bezier(0.16,1,0.3,1) both; }
 
-@keyframes hud-scan {
-  0% { transform: translateY(-100%); opacity: 0; }
-  10% { opacity: 0.7; }
-  90% { opacity: 0.7; }
-  100% { transform: translateY(100%); opacity: 0; }
+@keyframes slide-up {
+  from { opacity: 0; max-height: 0; transform: translateY(-4px); }
+  to   { opacity: 1; max-height: 800px; transform: translateY(0); }
 }
+.animate-slide-up { animation: slide-up 0.32s cubic-bezier(0.16,1,0.3,1) both; }
 
-@keyframes hud-sweep {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+/* Liquid Glass material (iOS 26-style) */
+.liquid-glass {
+  position: relative;
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255,255,255,0.16),
+    inset 0 -1px 0 0 rgba(255,255,255,0.04),
+    0 12px 36px rgba(0,0,0,0.45);
+  isolation: isolate;
 }
-
-@keyframes hud-dash {
-  to { stroke-dashoffset: -32; }
-}
-
-@keyframes hud-pulse-ring {
-  0% { transform: scale(0.95); opacity: 1; }
-  100% { transform: scale(1.4); opacity: 0; }
-}
-
-@keyframes hud-grid-drift {
-  0% { background-position: 0 0, 0 0; }
-  100% { background-position: 80px 80px, 80px 80px; }
-}
-
-@keyframes hud-target-flicker {
-  0%, 100% { opacity: 1; }
-  47% { opacity: 1; }
-  48% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
-.hud-breathe { animation: hud-breathe 3s ease-in-out infinite; }
-.hud-sweep { animation: hud-sweep 14s linear infinite; transform-origin: center; }
-.hud-dash { animation: hud-dash 1.2s linear infinite; }
-.hud-target-flicker { animation: hud-target-flicker 5s ease-in-out infinite; }
-
-.hud-grid {
-  background-image:
-    linear-gradient(to right, rgba(61, 219, 193, 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(61, 219, 193, 0.06) 1px, transparent 1px);
-  background-size: 80px 80px;
-  animation: hud-grid-drift 40s linear infinite;
-}
-
-.hud-scanline {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.hud-scanline::after {
+.liquid-glass::before {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(92, 252, 230, 0.5),
-    transparent
-  );
-  animation: hud-scan 7s linear infinite;
+  inset: 1px 1px auto 1px;
+  height: 50%;
+  border-radius: inherit;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.10) 0%,
+    rgba(255,255,255,0.02) 30%,
+    transparent 60%);
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes ai-shimmer {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.liquid-glass.is-focused::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(0,255,154,0)    0%,
+    rgba(0,255,154,0.55) 18%,
+    rgba(0,255,154,0)    36%,
+    rgba(0,255,154,0.30) 60%,
+    rgba(0,255,154,0)    100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: ai-shimmer 4.5s linear infinite;
+  filter: blur(1px);
+  pointer-events: none;
+  z-index: 2;
 }
 
-/* Subtle vignette over body so neon pops */
-.hud-vignette {
-  background:
-    radial-gradient(1200px 700px at 20% -10%, rgba(61, 219, 193, 0.08), transparent 60%),
-    radial-gradient(900px 600px at 100% 100%, rgba(179, 136, 255, 0.06), transparent 60%),
-    radial-gradient(700px 500px at 50% 50%, rgba(61, 219, 193, 0.03), transparent 70%),
-    #04080F;
-}
-
-/* Custom scrollbar inside HUD surfaces */
-.hud-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-.hud-scroll::-webkit-scrollbar-track { background: transparent; }
-.hud-scroll::-webkit-scrollbar-thumb {
-  background: rgba(61, 219, 193, 0.25);
-  border-radius: 2px;
-}
-.hud-scroll::-webkit-scrollbar-thumb:hover { background: rgba(61, 219, 193, 0.45); }
-
-/* Clip path for cybernetic notched panel corners */
-.hud-clip-notch {
-  clip-path: polygon(
-    12px 0%,
-    100% 0%,
-    100% calc(100% - 12px),
-    calc(100% - 12px) 100%,
-    0% 100%,
-    0% 12px
-  );
-}
-
-.hud-clip-notch-soft {
-  clip-path: polygon(
-    8px 0%,
-    100% 0%,
-    100% calc(100% - 8px),
-    calc(100% - 8px) 100%,
-    0% 100%,
-    0% 8px
-  );
-}
-
-/* ===== Command Center responsive grid =====
- * Always 3 columns — never stack — so the user sees the full tactical
- * command center at any landscape viewport. Sidebar widths shrink with
- * the viewport via clamp() so the squad image keeps a usable share. */
-
-.cc-grid {
-  display: grid;
-  grid-template-columns:
-    minmax(0, clamp(118px, 18vw, 260px))
-    minmax(0, 1fr)
-    minmax(0, clamp(132px, 21vw, 300px));
-  gap: clamp(4px, 0.6vw, 10px);
-  min-height: calc(100dvh - 56px);
-}
-
-@media (min-width: 1280px) {
-  .cc-grid {
-    grid-template-columns:
-      minmax(0, 260px)
-      minmax(0, 1fr)
-      minmax(0, 300px);
-    gap: 12px;
-  }
-}
-
-/* Scale dashboard text + spacing at narrow viewports.
- * Tailwind's text-xs / text-sm / text-base use rem; setting font-size
- * on the grid scales them. Arbitrary text-[Npx] don't scale, but the
- * dashboard mostly uses rem-based utilities. */
-.cc-grid {
-  font-size: clamp(11px, 1.05vw, 14px);
-}
-
-/* Tighter panel padding when the viewport is squeezed */
-@media (max-width: 900px) {
-  .cc-grid .cc-pad { padding: 8px; }
-  .cc-grid .cc-pad-y { padding-top: 6px; padding-bottom: 6px; }
-  .cc-grid h3 { font-size: 0.8rem; }
-}
-
-/* Telemetry meters: prefer fluid sizing at narrow viewports */
-.cc-meter-text {
-  font-size: clamp(0.625rem, 1.4vw, 0.875rem);
-}
+.app-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.app-scroll::-webkit-scrollbar-track { background: transparent; }
+.app-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
+.app-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
