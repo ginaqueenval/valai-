@@ -29,12 +29,14 @@ async function sleep(ms: number) {
 }
 
 async function fetchJson(url: string, attempt = 0): Promise<unknown> {
+  console.log(`[reddit] fetching ${url} (attempt ${attempt + 1})`);
   const response = await fetch(url, {
     headers: {
       "User-Agent": USER_AGENT,
       Accept: "application/json",
     },
   });
+  console.log(`[reddit] response status: ${response.status} for ${url}`);
   if (response.status === 429 || response.status === 503) {
     if (attempt >= 2) {
       throw new Error(`Reddit responded ${response.status} after ${attempt + 1} attempts`);
@@ -43,9 +45,13 @@ async function fetchJson(url: string, attempt = 0): Promise<unknown> {
     return fetchJson(url, attempt + 1);
   }
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[reddit] error response:`, errorText.slice(0, 200));
     throw new Error(`Reddit responded ${response.status} for ${url}`);
   }
-  return response.json();
+  const json = await response.json();
+  console.log(`[reddit] parsed json successfully`);
+  return json;
 }
 
 type RedditListingChild = {
@@ -161,13 +167,16 @@ export async function harvestSubreddit(
   subreddit: string,
   maxItems: number
 ): Promise<RedditItem[]> {
+  console.log(`[harvest] starting r/${subreddit} (max ${maxItems} items)`);
   const collected: RedditItem[] = [];
   const seen = new Set<string>();
 
   for (const sort of SUBREDDIT_SORTS) {
     if (collected.length >= maxItems) break;
     try {
+      console.log(`[harvest] fetching r/${subreddit}/${sort}`);
       const posts = await fetchSubredditPosts(subreddit, sort, POST_FETCH_LIMIT, "day");
+      console.log(`[harvest] got ${posts.length} posts from r/${subreddit}/${sort}`);
       for (const post of posts) {
         if (seen.has(post.external_id)) continue;
         seen.add(post.external_id);
@@ -179,6 +188,7 @@ export async function harvestSubreddit(
     }
     await sleep(800);
   }
+  console.log(`[harvest] done r/${subreddit}: ${collected.length} unique items`);
 
   // For the most popular handful of posts, pull a slice of comments too.
   // Comments are where the most actionable community signal lives.
