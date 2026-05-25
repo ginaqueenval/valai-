@@ -1,10 +1,10 @@
 // src/lib/ingestion/pipeline.ts
 //
-// End-to-end ingest: fetch fresh Reddit content, classify with Gemini,
+// End-to-end ingest: fetch fresh Twitter content, classify with Gemini,
 // upsert into Postgres, then rebuild the entity_aggregates table from
 // the latest mentions. Designed to run inside a Vercel cron function.
 
-import { harvestSubreddit, type RedditItem } from "./reddit";
+import { harvestTwitter, type TwitterItem } from "./twitter";
 import {
   classifierModelId,
   classifyItems,
@@ -15,8 +15,14 @@ import { extractCardFromImage, type CardProfile } from "./cardExtractor";
 import { ensureSchema } from "../db/init";
 import { sql } from "../db/sql";
 
-const TARGET_SUBREDDITS = ["EASportsFC", "FIFA", "fut", "FC_26", "fut_evos"];
-const MAX_ITEMS_PER_SUBREDDIT = 80;
+// Search queries for FC26 community sentiment.
+// Twitter Free tier: 1 request / 15min, so keep this small.
+const TWITTER_QUERIES = [
+  "FC26 OR EAFC26",
+  "FUT26 OR #FUT26",
+  "EASportsFC",
+];
+const MAX_ITEMS_PER_QUERY = 100;
 const AGGREGATE_LOOKBACK_DAYS = 14;
 const MAX_CARD_EXTRACTIONS_PER_RUN = 20;
 
@@ -30,7 +36,7 @@ export type PipelineReport = {
   errors: string[];
 };
 
-async function insertSources(items: RedditItem[]): Promise<Map<string, bigint>> {
+async function insertSources(items: TwitterItem[]): Promise<Map<string, bigint>> {
   // Map of external_id -> id (so we can attach classifications + entities).
   console.log(`[sources] inserting ${items.length} items`);
   const db = sql();
@@ -72,7 +78,7 @@ async function insertSources(items: RedditItem[]): Promise<Map<string, bigint>> 
 
 async function storeClassifications(
   externalIdToSourceId: Map<string, bigint>,
-  externalIdToItem: Map<string, RedditItem>,
+  externalIdToItem: Map<string, TwitterItem>,
   results: Map<string, ClassifierResult>
 ): Promise<{ classified: number; entities: number }> {
   const db = sql();
@@ -224,14 +230,14 @@ async function rebuildAggregates(): Promise<number> {
 }
 
 async function extractAndStoreCards(
-  allItems: RedditItem[],
+  allItems: TwitterItem[],
   externalIdToSourceId: Map<string, bigint>
 ): Promise<number> {
   // Only image posts, ordered by score descending, capped per run.
   const imagePosts = allItems
     .filter(
       (it) =>
-        it.source_type === "reddit_post" &&
+        it.source_type === "tweet" &&
         it.imageUrl &&
         externalIdToSourceId.has(it.external_id)
     )
@@ -321,19 +327,15 @@ export async function runPipeline(): Promise<PipelineReport> {
     return report;
   }
 
-  console.log(`[pipeline] harvesting from ${TARGET_SUBREDDITS.length} subreddits: ${TARGET_SUBREDDITS.join(", ")}`);
-  const allItems: RedditItem[] = [];
-  for (const sub of TARGET_SUBREDDITS) {
-    try {
-      console.log(`[pipeline] harvesting r/${sub}`);
-      const items = await harvestSubreddit(sub, MAX_ITEMS_PER_SUBREDDIT);
-      console.log(`[pipeline] r/${sub} yielded ${items.length} items`);
-      allItems.push(...items);
-    } catch (err) {
-      const msg = `harvest r/${sub}: ${(err as Error).message}`;
-      console.error(`[pipeline] ${msg}`);
-      report.errors.push(msg);
-    }
+  console.log(`[pipeline] harvesting from Twitter with ${TWITTER_QUERIES.length} queries`);
+  let allItems: TwitterItem[] = [];
+  try {
+    allItems = await harvestTwitter(TWITTER_QUERIES, MAX_ITEMS_PER_QUERY);
+    console.log(`[pipeline] Twitter yielded ${allItems.length} items`);
+  } catch (err) {
+    const msg = `harvestTwitter: ${(err as Error).message}`;
+    console.error(`[pipeline] ${msg}`);
+    report.errors.push(msg);
   }
   report.fetched = allItems.length;
   console.log(`[pipeline] total fetched: ${allItems.length}`);
