@@ -18,7 +18,10 @@ export type RedditItem = {
   imageUrl?: string | null;
 };
 
-const USER_AGENT = process.env.REDDIT_USER_AGENT ?? "valbri-fc/1.0";
+// Use environment variable if set, otherwise use a standard user agent
+// Reddit requires a valid User-Agent in the format: /r/subreddit bot version
+const USER_AGENT = (process.env.REDDIT_USER_AGENT ?? "").trim() || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+console.log(`[reddit] USER_AGENT: ${USER_AGENT}`);
 
 const POST_FETCH_LIMIT = 50;
 const COMMENT_FETCH_LIMIT = 50;
