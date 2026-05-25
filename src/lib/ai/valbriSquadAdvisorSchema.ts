@@ -18,9 +18,18 @@ export type Goal =
 
 export type PlayerCalloutSeverity = "info" | "warning" | "critical";
 
+export type CommunitySignal = {
+  positiveCount: number;
+  negativeCount: number;
+  bucket: "positive" | "negative" | "mixed";
+  topQuote?: string;
+  matchedTerm: string;
+};
+
 export type RecommendedReplacement = {
   profile: string;
   reason: string;
+  communitySignal?: CommunitySignal;
 };
 
 export type PlayerCallout = {
