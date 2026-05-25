@@ -36,7 +36,12 @@ async function fetchJson(url: string, attempt = 0): Promise<unknown> {
   const response = await fetch(url, {
     headers: {
       "User-Agent": USER_AGENT,
-      Accept: "application/json",
+      "Accept": "application/json",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Referer": "https://www.reddit.com/",
+      "DNT": "1",
     },
   });
   console.log(`[reddit] response status: ${response.status} for ${url}`);
