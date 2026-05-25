@@ -37,32 +37,43 @@ export async function GET() {
       negative_count: number;
       top_positive_quote: string | null;
       top_negative_quote: string | null;
-      best_playstyles: string | null;
+      best_playstyles: Record<string, string> | string | null;
       weak_points: string[] | null;
       strengths: string[] | null;
       recommended_chemstyle: string | null;
       updated_at: string;
     }>;
 
-    const cards = rows.map((r) => ({
-      name: r.display_value,
-      sentiment: {
-        positive: r.positive_count,
-        negative: r.negative_count,
-        total: r.positive_count + r.negative_count,
-      },
-      quotes: {
-        positive: r.top_positive_quote,
-        negative: r.top_negative_quote,
-      },
-      analysis: {
-        bestPlaystyles: r.best_playstyles ? JSON.parse(r.best_playstyles) : null,
-        strengths: r.strengths ?? [],
-        weaknesses: r.weak_points ?? [],
-        recommendedChemstyle: r.recommended_chemstyle,
-      },
-      updatedAt: r.updated_at,
-    }));
+    const cards = rows.map((r) => {
+      // JSONB can come back as object (most drivers) or string (some configs)
+      let bestPlaystyles: Record<string, string> | null = null;
+      if (r.best_playstyles) {
+        bestPlaystyles =
+          typeof r.best_playstyles === "string"
+            ? JSON.parse(r.best_playstyles)
+            : r.best_playstyles;
+      }
+
+      return {
+        name: r.display_value,
+        sentiment: {
+          positive: r.positive_count,
+          negative: r.negative_count,
+          total: r.positive_count + r.negative_count,
+        },
+        quotes: {
+          positive: r.top_positive_quote,
+          negative: r.top_negative_quote,
+        },
+        analysis: {
+          bestPlaystyles,
+          strengths: r.strengths ?? [],
+          weaknesses: r.weak_points ?? [],
+          recommendedChemstyle: r.recommended_chemstyle,
+        },
+        updatedAt: r.updated_at,
+      };
+    });
 
     return NextResponse.json({
       total: cards.length,
