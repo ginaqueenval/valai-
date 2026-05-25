@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+<title>Valai · Design Preview</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          valbg: "#070A0F",
+          valcard: "#0B1220",
+          valelev: "#11192B",
+          valtext: "#E7EDF7",
+          valmuted: "#9AA7BD",
+          valaccent: "#00FF9A",
+          valhover: "#00D47E",
+        },
+        fontFamily: {
+          sans: [
+            "-apple-system","BlinkMacSystemFont",
+            "SF Pro Display","SF Pro Text",
+            "Segoe UI","system-ui","Helvetica Neue","Arial","sans-serif",
+          ],
+        },
+        boxShadow: {
+          apple: "0 8px 32px rgba(0,0,0,0.4)",
+          "apple-lg": "0 20px 60px rgba(0,0,0,0.5)",
+          "cta-hover": "0 8px 24px rgba(0,255,154,0.18)",
+          "send-glow": "0 4px 16px rgba(0,255,154,0.32)",
+        },
+        borderRadius: { "4xl": "2rem" },
+      },
+    },
+  };
+</script>
+<style>
+  :root {
+    --bg: #070A0F;
+    --card: #0B1220;
+    --elev: #11192B;
+    --text: #E7EDF7;
+    --muted: #9AA7BD;
+    --accent: #00FF9A;
+    --accent-hover: #00D47E;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+      "SF Pro Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Soft motion */
+  @keyframes pulse-dot {
+    0%   { transform: scale(1);   opacity: 1; }
+    70%, 100% { transform: scale(2.4); opacity: 0; }
+  }
+  .animate-pulse-dot { animation: pulse-dot 1.8s cubic-bezier(0.4,0,0.6,1) infinite; }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in { animation: fade-in 0.42s cubic-bezier(0.16,1,0.3,1) both; }
+
+  @keyframes slide-up {
+    from { opacity: 0; max-height: 0; transform: translateY(-4px); }
+    to   { opacity: 1; max-height: 800px; transform: translateY(0); }
+  }
+  .animate-slide-up { animation: slide-up 0.32s cubic-bezier(0.16,1,0.3,1) both; }
+
+  /* Liquid Glass material (iOS 26) */
+  .liquid-glass {
+    position: relative;
+    background: rgba(255, 255, 255, 0.045);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255,255,255,0.16),
+      inset 0 -1px 0 0 rgba(255,255,255,0.04),
+      0 12px 36px rgba(0,0,0,0.45);
+    isolation: isolate;
+  }
+  .liquid-glass::before {
+    content: "";
+    position: absolute;
+    inset: 1px 1px auto 1px;
+    height: 50%;
+    border-radius: inherit;
+    background: linear-gradient(180deg,
+      rgba(255,255,255,0.10) 0%,
+      rgba(255,255,255,0.02) 30%,
+      transparent 60%);
+    pointer-events: none;
+    z-index: 1;
+  }
+  @keyframes ai-shimmer {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .liquid-glass.is-focused::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    padding: 2px;
+    background: conic-gradient(
+      from 0deg,
+      rgba(0,255,154,0)    0%,
+      rgba(0,255,154,0.55) 18%,
+      rgba(0,255,154,0)    36%,
+      rgba(0,255,154,0.30) 60%,
+      rgba(0,255,154,0)    100%);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    animation: ai-shimmer 4.5s linear infinite;
+    filter: blur(1px);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* Apple-style thin scrollbar */
+  .app-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .app-scroll::-webkit-scrollbar-track { background: transparent; }
+  .app-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
+  .app-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+  /* Hide scrollbar utility */
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Preview view system (this file only — for switching between views) */
+  .preview-view { display: none; }
+  .preview-view.active { display: block; }
+
+  /* Mock squad-field background */
+  .mock-field {
+    background:
+      radial-gradient(ellipse 60% 70% at 50% 50%, rgba(0,255,154,0.06), transparent 70%),
+      linear-gradient(180deg, #0d3520 0%, #082716 100%);
+  }
+  .mock-field-stripes {
+    background-image: repeating-linear-gradient(
+      180deg,
+      rgba(255,255,255,0.025) 0,
+      rgba(255,255,255,0.025) 28px,
+      transparent 28px,
+      transparent 56px
+    );
+  }
+</style>
+</head>
+<body class="bg-valbg text-valtext antialiased min-h-screen">
+
+<!-- ============================================================ -->
+<!--                  PREVIEW VIEW SWITCHER                       -->
+<!-- ============================================================ -->
+<div class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
+  <div class="liquid-glass rounded-full px-1.5 py-1.5 flex items-center gap-1">
+    <button onclick="switchView('home')"     id="btn-home"    class="view-btn rounded-full px-4 py-2 text-xs font-semibold transition">Home</button>
+    <button onclick="switchView('intake')"   id="btn-intake"  class="view-btn rounded-full px-4 py-2 text-xs font-semibold transition">Advisor · Intake</button>
+    <button onclick="switchView('results')"  id="btn-results" class="view-btn rounded-full px-4 py-2 text-xs font-semibold transition">Advisor · Results</button>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!--                       SITE NAV                                -->
+<!-- ============================================================ -->
+<header class="sticky top-0 z-30 liquid-glass">
+  <div class="mx-auto max-w-5xl px-6 md:px-8 py-3 flex items-center justify-between">
+    <a href="#" class="text-base font-semibold tracking-tight text-valtext">valai<span class="text-valmuted font-normal"> · Squad Advisor</span></a>
+    <nav class="hidden md:flex items-center gap-7 text-sm text-valmuted">
+      <a href="#" class="hover:text-valtext transition">Home</a>
+      <a href="#" class="hover:text-valtext transition">Advisor</a>
+      <a href="#" class="hover:text-valtext transition">About</a>
+    </nav>
+    <a href="#" class="rounded-full bg-valaccent px-4 py-2 text-sm font-semibold text-valbg hover:bg-valhover transition-colors">
+      Open Advisor
+    </a>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<!--                       VIEW 1: HOME                            -->
+<!-- ============================================================ -->
+<main id="view-home" class="preview-view active">
+
+  <!-- HERO -->
+  <section class="mx-auto max-w-5xl px-6 md:px-8 pt-20 pb-16 md:pt-28 md:pb-20 text-center">
+    <div class="inline-flex items-center gap-2 rounded-full bg-valaccent/10 border border-valaccent/25 px-3.5 py-1.5 text-xs font-medium text-valaccent">
+      <span class="relative inline-flex h-2 w-2">
+        <span class="absolute inset-0 rounded-full bg-valaccent animate-pulse-dot"></span>
+        <span class="relative inline-block h-2 w-2 rounded-full bg-valaccent"></span>
+      </span>
+      AI Squad Advisor · Preview
+    </div>
+    <h1 class="mt-7 text-5xl md:text-7xl lg:text-8xl font-semibold tracking-tight leading-[1.05]">
+      Smarter squads.<br/>
+      <span class="text-valaccent">Sharper instincts.</span>
+    </h1>
+    <p class="mx-auto mt-7 max-w-2xl text-lg md:text-xl text-valmuted leading-relaxed">
+      Upload your squad. Valai flags the cards that hold you back and recommends
+      replacement profiles tuned to your division and goal.
+    </p>
+    <div class="mt-10 flex flex-wrap justify-center gap-4">
+      <a href="#" class="rounded-full bg-valaccent px-7 py-3.5 text-base font-semibold text-valbg hover:bg-valhover hover:shadow-cta-hover transition-all">
+        Open Squad Advisor
+      </a>
+      <a href="#" class="inline-flex items-center gap-1 rounded-full px-4 py-3.5 text-base font-medium text-valaccent hover:text-valhover transition group">
+        Learn more
+        <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+  </section>
+
+  <!-- PRODUCT MOCK CARD -->
+  <section class="mx-auto max-w-3xl px-6 md:px-8 pb-20">
+    <div class="rounded-[28px] bg-valcard border border-white/[0.06] shadow-apple-lg p-6 md:p-8 animate-fade-in">
+
+      <!-- card head -->
+      <div class="flex items-center justify-between mb-5">
+        <div class="inline-flex items-center gap-2 rounded-full bg-valaccent/10 border border-valaccent/25 px-3 py-1 text-xs font-medium text-valaccent">
+          <span class="h-1.5 w-1.5 rounded-full bg-valaccent"></span>
+          3 callouts
+        </div>
+        <span class="text-xs text-valmuted">Live preview · sample squad</span>
+      </div>
+
+      <!-- grouped list of demo callouts -->
+      <div class="overflow-hidden rounded-3xl bg-valelev border border-white/[0.06] divide-y divide-white/[0.06]">
+        <!-- row 1 -->
+        <div class="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.03] transition">
+          <span class="h-2.5 w-2.5 rounded-full bg-[#FF5C7A] shrink-0"></span>
+          <div class="flex-1">
+            <div class="text-sm font-semibold">ST · BENZ TOTW</div>
+            <div class="text-xs text-valmuted mt-0.5">Pace 78 holds you back vs press meta</div>
+          </div>
+          <span class="text-xs font-medium text-[#FF5C7A]">Critical</span>
+          <svg class="h-4 w-4 text-valmuted" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <!-- row 2 -->
+        <div class="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.03] transition">
+          <span class="h-2.5 w-2.5 rounded-full bg-[#FFB860] shrink-0"></span>
+          <div class="flex-1">
+            <div class="text-sm font-semibold">CM · MIDFIELDER</div>
+            <div class="text-xs text-valmuted mt-0.5">Stamina dropoff after minute 60</div>
+          </div>
+          <span class="text-xs font-medium text-[#FFB860]">Warning</span>
+          <svg class="h-4 w-4 text-valmuted" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <!-- row 3 -->
+        <div class="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.03] transition">
+          <span class="h-2.5 w-2.5 rounded-full bg-valaccent shrink-0"></span>
+          <div class="flex-1">
+            <div class="text-sm font-semibold">CB · DEFENDER</div>
+            <div class="text-xs text-valmuted mt-0.5">Solid — consider as upgrade target</div>
+          </div>
+          <span class="text-xs font-medium text-valaccent">Info</span>
+          <svg class="h-4 w-4 text-valmuted" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+    </div>
+    <p class="mt-5 text-center text-sm text-valmuted">
+      Live preview · actual analysis includes up to 11 callouts.
+    </p>
+  </section>
+
+  <!-- FEATURES GRID -->
+  <section class="mx-auto max-w-5xl px-6 md:px-8 py-20 md:py-28">
+    <h2 class="text-center text-3xl md:text-4xl font-semibold tracking-tight">
+      Built for the next match
+    </h2>
+    <p class="mx-auto mt-4 max-w-xl text-center text-base text-valmuted leading-relaxed">
+      Four ways Valai sharpens your decisions, before the kickoff whistle.
+    </p>
+
+    <div class="mt-12 grid gap-4 md:grid-cols-2">
+      <!-- card -->
+      <div class="rounded-3xl bg-valcard border border-white/[0.06] p-7 hover:border-white/[0.12] transition-colors">
+        <div class="h-11 w-11 rounded-2xl bg-valaccent/10 border border-valaccent/20 grid place-items-center mb-5">
+          <svg class="h-5 w-5 text-valaccent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="text-lg font-semibold tracking-tight">Card callouts</div>
+        <p class="mt-2 text-sm text-valmuted leading-relaxed">
+          Spot every weak link in seconds — annotated directly on your squad.
+        </p>
+      </div>
+      <div class="rounded-3xl bg-valcard border border-white/[0.06] p-7 hover:border-white/[0.12] transition-colors">
+        <div class="h-11 w-11 rounded-2xl bg-valaccent/10 border border-valaccent/20 grid place-items-center mb-5">
+          <svg class="h-5 w-5 text-valaccent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17l5-5 5 5"/><path d="M7 11l5-5 5 5"/></svg>
+        </div>
+        <div class="text-lg font-semibold tracking-tight">Replacement profiles</div>
+        <p class="mt-2 text-sm text-valmuted leading-relaxed">
+          Targeted upgrade ideas with stat reasons — tuned to your goal.
+        </p>
+      </div>
+      <div class="rounded-3xl bg-valcard border border-white/[0.06] p-7 hover:border-white/[0.12] transition-colors">
+        <div class="h-11 w-11 rounded-2xl bg-valaccent/10 border border-valaccent/20 grid place-items-center mb-5">
+          <svg class="h-5 w-5 text-valaccent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="text-lg font-semibold tracking-tight">Tactical chat</div>
+        <p class="mt-2 text-sm text-valmuted leading-relaxed">
+          Ask follow-ups. Get formation, instructions, and upgrade-order advice.
+        </p>
+      </div>
+      <div class="rounded-3xl bg-valcard border border-white/[0.06] p-7 hover:border-white/[0.12] transition-colors">
+        <div class="h-11 w-11 rounded-2xl bg-valaccent/10 border border-valaccent/20 grid place-items-center mb-5">
+          <svg class="h-5 w-5 text-valaccent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+        </div>
+        <div class="text-lg font-semibold tracking-tight">Community signal</div>
+        <p class="mt-2 text-sm text-valmuted leading-relaxed">
+          Backed by Reddit and Twitter sentiment for every flagged card.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLOSING CTA -->
+  <section class="mx-auto max-w-3xl px-6 md:px-8 py-24 text-center">
+    <h2 class="text-4xl md:text-5xl font-semibold tracking-tight">Ready when you are.</h2>
+    <p class="mt-4 text-lg text-valmuted">Free preview · no signup</p>
+    <div class="mt-8 flex justify-center">
+      <a href="#" class="rounded-full bg-valaccent px-7 py-3.5 text-base font-semibold text-valbg hover:bg-valhover hover:shadow-cta-hover transition-all">
+        Open Squad Advisor
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-white/[0.06]">
+    <div class="mx-auto max-w-5xl px-6 md:px-8 py-10 flex flex-col md:flex-row justify-between gap-3 text-xs text-valmuted">
+      <div>© 2026 valai · Valbri</div>
+      <div class="flex gap-4">
+        <a href="#" class="hover:text-valtext transition">Terms</a>
+        <span>·</span>
+        <a href="#" class="hover:text-valtext transition">Privacy</a>
+        <span>·</span>
+        <a href="#" class="hover:text-valtext transition">Contact</a>
+      </div>
+    </div>
+  </footer>
+</main>
+
+<!-- ============================================================ -->
+<!--                  VIEW 2: ADVISOR · INTAKE                     -->
+<!-- ============================================================ -->
+<main id="view-intake" class="preview-view">
+  <div class="mx-auto max-w-3xl px-6 md:px-8 py-12 md:py-16">
+
+    <!-- Large title nav -->
+    <header class="mb-10">
+      <p class="text-xs font-medium uppercase tracking-wider text-valmuted">AI Squad Advisor</p>
+      <div class="mt-2 flex items-center justify-between gap-4">
+        <h1 class="text-4xl md:text-5xl font-semibold tracking-tight">Squad Advisor</h1>
+        <div class="inline-flex items-center gap-2 rounded-full bg-valaccent/10 border border-valaccent/25 px-3.5 py-1.5 text-xs font-medium text-valaccent">
+          <span class="relative inline-flex h-2 w-2">
+            <span class="absolute inset-0 rounded-full bg-valaccent animate-pulse-dot"></span>
+            <span class="relative inline-block h-2 w-2 rounded-full bg-valaccent"></span>
+          </span>
+          Engine standing by
+        </div>
+      </div>
+      <p class="mt-3 text-base text-valmuted leading-relaxed max-w-xl">
+        Upload a squad. Set your goal. We'll do the rest.
+      </p>
+    </header>
+
+    <!-- Intake card -->
+    <div class="rounded-[28px] bg-valcard border border-white/[0.06] shadow-apple p-8 md:p-10 space-y-8 animate-fade-in">
+
+      <!-- Field: Squad screenshot -->
+      <div>
+        <div class="text-sm font-semibold mb-3">Squad screenshot</div>
+        <label class="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-white/10 bg-black/20 px-6 py-12 text-center hover:border-valaccent/40 transition cursor-pointer">
+          <div class="h-12 w-12 rounded-2xl bg-valaccent/10 border border-valaccent/20 grid place-items-center mb-4">
+            <svg class="h-5 w-5 text-valaccent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <div class="text-base font-semibold text-valtext">Add squad screenshot</div>
+          <div class="mt-1 text-sm text-valmuted">Tap or drop here · PNG, JPG up to 10MB</div>
+        </label>
+      </div>
+
+      <!-- Field: Platform (segmented control) -->
+      <div>
+        <div class="text-sm font-semibold mb-3">Platform</div>
+        <div class="liquid-glass inline-flex rounded-full p-1">
+          <button class="rounded-full bg-valaccent px-5 py-2 text-sm font-semibold text-valbg shadow-sm">PlayStation</button>
+          <button class="rounded-full px-5 py-2 text-sm font-medium text-valmuted hover:text-valtext transition">Xbox</button>
+          <button class="rounded-full px-5 py-2 text-sm font-medium text-valmuted hover:text-valtext transition">PC</button>
+        </div>
+      </div>
+
+      <!-- Field: Grouped list (Division + Goal) -->
+      <div>
+        <div class="overflow-hidden rounded-3xl bg-valelev border border-white/[0.06] divide-y divide-white/[0.06]">
+          <button class="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] transition text-left">
+            <div>
+              <div class="text-sm font-medium text-valtext">Division Level</div>
+              <div class="text-xs text-valmuted mt-0.5">Where do you usually finish?</div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-valmuted">Division 7-5</span>
+              <svg class="h-4 w-4 text-valmuted" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </button>
+          <button class="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.03] transition text-left">
+            <div>
+              <div class="text-sm font-medium text-valtext">Goal</div>
+              <div class="text-xs text-valmuted mt-0.5">What do you want to improve?</div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-valmuted">Best Overall Improvement</span>
+              <svg class="h-4 w-4 text-valmuted" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Field: Tactics textarea -->
+      <div>
+        <div class="text-sm font-semibold mb-3">Current tactics <span class="text-valmuted font-normal">(optional)</span></div>
+        <textarea
+          rows="3"
+          placeholder="Formation, mentality, instructions..."
+          class="block w-full rounded-2xl bg-black/20 border border-white/10 px-4 py-3 text-base text-valtext placeholder:text-valmuted/70 focus:outline-none focus:border-valaccent/40 transition"></textarea>
+      </div>
+
+      <!-- Submit -->
+      <button class="w-full rounded-full bg-valaccent text-valbg font-semibold text-base px-6 py-4 hover:bg-valhover hover:shadow-cta-hover transition-all">
+        Run Analysis
+      </button>
+    </div>
+
+    <p class="mt-6 text-center text-xs text-valmuted">
+      Free preview · we never store your image after analysis.
+    </p>
+  </div>
+</main>
+
+<!-- ============================================================ -->
+<!--                  VIEW 3: ADVISOR · RESULTS                    -->
+<!-- ============================================================ -->
+<main id="view-results" class="preview-view">
+  <div class="mx-auto max-w-3xl px-6 md:px-8 py-12 md:py-16">
+
+    <!-- Large title -->
+    <header class="mb-10">
+      <p class="text-xs font-medium uppercase tracking-wider text-valmuted">AI Squad Advisor</p>
+      <div class="mt-2 flex items-center justify-between gap-4">
+        <h1 class="text-4xl md:text-5xl font-semibold tracking-tight">Squad Advisor</h1>
+        <div class="inline-flex items-center gap-2 rounded-full bg-valaccent/10 border border-valaccent/25 px-3.5 py-1.5 text-xs font-medium text-valaccent">
+          <span class="h-1.5 w-1.5 rounded-full bg-valaccent"></span>
+          Analysis ready
+        </div>
+      </div>
+    </header>
+
+    <!-- Squad preview card -->
+    <div class="rounded-[28px] bg-valcard border border-white/[0.06] shadow-apple p-5 md:p-6 animate-fade-in">
+      <div class="relative aspect-[16/10] rounded-2xl overflow-hidden mock-field">
+        <div class="absolute inset-0 mock-field-stripes"></div>
+        <!-- center circle -->
+        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-32 w-32 rounded-full border border-white/15"></div>
+        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-white/40"></div>
+        <!-- side lines -->
+        <div class="absolute top-0 bottom-0 left-1/2 w-px bg-white/15"></div>
+
+        <!-- highlight rectangles (mock player positions) -->
+        <div class="absolute rounded-md border-2 border-[#FF5C7A] bg-[#FF5C7A]/10" style="top: 14%; left: 20%; width: 12%; height: 18%;">
+          <span class="absolute -top-2 -left-2 h-5 w-5 rounded-md bg-valbg border border-white/15 text-[10px] font-semibold grid place-items-center text-[#FF5C7A]">1</span>
+        </div>
+        <div class="absolute rounded-md border-2 border-[#FF5C7A] bg-[#FF5C7A]/10 ring-2 ring-valaccent/40 shadow-[0_0_24px_rgba(0,255,154,0.25)]" style="top: 14%; left: 68%; width: 12%; height: 18%;">
+          <span class="absolute -top-2 -left-2 h-5 w-5 rounded-md bg-valbg border border-valaccent/40 text-[10px] font-semibold grid place-items-center text-[#FF5C7A]">2</span>
+        </div>
+        <div class="absolute rounded-md border-2 border-[#FFB860] bg-[#FFB860]/10" style="top: 42%; left: 44%; width: 12%; height: 18%;">
+          <span class="absolute -top-2 -left-2 h-5 w-5 rounded-md bg-valbg border border-white/15 text-[10px] font-semibold grid place-items-center text-[#FFB860]">3</span>
+        </div>
+        <div class="absolute rounded-md border-2 border-valaccent bg-valaccent/10" style="top: 68%; left: 20%; width: 12%; height: 18%;">
+          <span class="absolute -top-2 -left-2 h-5 w-5 rounded-md bg-valbg border border-white/15 text-[10px] font-semibold grid place-items-center text-valaccent">4</span>
+        </div>
+        <div class="absolute rounded-md border-2 border-[#FFB860] bg-[#FFB860]/10" style="top: 68%; left: 68%; width: 12%; height: 18%;">
+          <span class="absolute -top-2 -left-2 h-5 w-5 rounded-md bg-valbg border border-white/15 text-[10px] font-semibold grid place-items-center text-[#FFB860]">5</span>
+        </div>
+
+        <!-- mock field label -->
+        <div class="absolute bottom-3 right-3 text-[10px] text-white/40 tracking-wider uppercase">Squad preview · mock</div>
+      </div>
+    </div>
+
+    <!-- Summary bar (horizontal pills) -->
+    <div class="mt-6 flex flex-wrap gap-2">
+      <span class="inline-flex items-center gap-2 rounded-full bg-valaccent/10 border border-valaccent/25 px-3 py-1 text-xs font-medium text-valaccent">5 callouts</span>
+      <span class="inline-flex items-center gap-2 rounded-full bg-[#FF5C7A]/10 border border-[#FF5C7A]/25 px-3 py-1 text-xs font-medium text-[#FF5C7A]"><span class="h-1.5 w-1.5 rounded-full bg-[#FF5C7A]"></span>2 critical</span>
+      <span class="inline-flex items-center gap-2 rounded-full bg-[#FFB860]/10 border border-[#FFB860]/25 px-3 py-1 text-xs font-medium text-[#FFB860]"><span class="h-1.5 w-1.5 rounded-full bg-[#FFB860]"></span>2 warning</span>
+      <span class="inline-flex items-center gap-2 rounded-full bg-valaccent/10 border border-valaccent/25 px-3 py-1 text-xs font-medium text-valaccent"><span class="h-1.5 w-1.5 rounded-full bg-valaccent"></span>1 info</span>
+      <span class="inline-flex items-center gap-2 rounded-full bg-white/[0.05] border border-white/10 px-3 py-1 text-xs font-medium text-valmuted">PlayStation</span>
+      <span class="inline-flex items-center gap-2 rounded-full bg-white/[0.05] border border-white/10 px-3 py-1 text-xs font-medium text-valmuted">Division 7-5</span>
+    </div>
+
+    <!-- Player callouts grouped list -->
+    <section class="mt-10">
+      <h2 class="text-2xl md:text-3xl font-semibold tracking-tight">Player callouts</h2>
+      <p class="mt-2 text-base text-valmuted leading-relaxed">
+        Tap a row to highlight it on the squad and reveal the suggestion.
+      </p>
+
+      <div class="mt-6 overflow-hidden rounded-3xl bg-valelev border border-white/[0.06] divide-y divide-white/[0.06]">
+
+        <!-- Row 1 (collapsed, critical) -->
+        <button class="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/[0.03] transition text-left">
+          <span class="h-2.5 w-2.5 rounded-full bg-[#FF5C7A] shrink-0"></span>
+          <span class="text-[10px] font-semibold rounded-md border border-white/15 px-1.5 py-0.5 text-valmuted">CB</span>
+          <div class="flex-1">
+            <div class="text-sm font-semibold">Aerial vs 6'4"+ strikers</div>
+          </div>
+          <span class="text-xs font-medium text-[#FF5C7A]">Critical</span>
+          <svg class="h-4 w-4 text-valmuted shrink-0" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <!-- Row 2 (EXPANDED, critical, selected) -->
+        <div class="bg-white/[0.02]">
+          <button class="w-full flex items-center gap-4 px-5 py-4 text-left">
+            <span class="h-2.5 w-2.5 rounded-full bg-[#FF5C7A] shrink-0"></span>
+            <span class="text-[10px] font-semibold rounded-md border border-valaccent/40 bg-valaccent/10 px-1.5 py-0.5 text-valaccent">ST</span>
+            <div class="flex-1">
+              <div class="text-sm font-semibold">Pace 78 holds you back vs press meta</div>
+            </div>
+            <span class="text-xs font-medium text-[#FF5C7A]">Critical</span>
+            <svg class="h-4 w-4 text-valaccent shrink-0 rotate-90" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+
+          <div class="px-5 pb-5 -mt-1 animate-slide-up">
+            <p class="text-sm text-valmuted leading-relaxed">
+              Top sprint shows on the break, but first-step burst is the differentiator vs press-heavy opponents. You're getting caught on the half-turn against high-line defenses; that wastes the build-up.
+            </p>
+
+            <!-- inline replacement profile -->
+            <div class="mt-4 rounded-2xl bg-valbg border border-white/[0.06] p-4">
+              <div class="text-[10px] font-semibold uppercase tracking-wider text-valaccent">Replacement profile</div>
+              <div class="mt-2 flex items-baseline justify-between gap-3">
+                <div>
+                  <div class="text-base font-semibold">HERO Eto'o</div>
+                  <p class="mt-1 text-xs text-valmuted leading-relaxed">
+                    Pace +8, finishing +5 in your role. Wins the half-turn duel vs 6'2"+ CBs.
+                  </p>
+                </div>
+                <div class="text-right shrink-0">
+                  <div class="inline-flex items-center gap-1.5 rounded-full bg-valaccent/10 border border-valaccent/25 px-2.5 py-1 text-[11px] font-medium text-valaccent">
+                    <span class="h-1.5 w-1.5 rounded-full bg-valaccent"></span>
+                    78% positive
+                  </div>
+                  <div class="mt-1 text-[11px] text-valmuted italic">"feels unstoppable"</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 3 (warning) -->
+        <button class="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/[0.03] transition text-left">
+          <span class="h-2.5 w-2.5 rounded-full bg-[#FFB860] shrink-0"></span>
+          <span class="text-[10px] font-semibold rounded-md border border-white/15 px-1.5 py-0.5 text-valmuted">CM</span>
+          <div class="flex-1">
+            <div class="text-sm font-semibold">Press resistance below role baseline</div>
+          </div>
+          <span class="text-xs font-medium text-[#FFB860]">Warning</span>
+          <svg class="h-4 w-4 text-valmuted shrink-0" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <!-- Row 4 (info) -->
+        <button class="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/[0.03] transition text-left">
+          <span class="h-2.5 w-2.5 rounded-full bg-valaccent shrink-0"></span>
+          <span class="text-[10px] font-semibold rounded-md border border-white/15 px-1.5 py-0.5 text-valmuted">LB</span>
+          <div class="flex-1">
+            <div class="text-sm font-semibold">Solid — keep as anchor</div>
+          </div>
+          <span class="text-xs font-medium text-valaccent">Info</span>
+          <svg class="h-4 w-4 text-valmuted shrink-0" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <!-- Row 5 (warning) -->
+        <button class="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/[0.03] transition text-left">
+          <span class="h-2.5 w-2.5 rounded-full bg-[#FFB860] shrink-0"></span>
+          <span class="text-[10px] font-semibold rounded-md border border-white/15 px-1.5 py-0.5 text-valmuted">RW</span>
+          <div class="flex-1">
+            <div class="text-sm font-semibold">Weak foot 3★ limits cut-ins</div>
+          </div>
+          <span class="text-xs font-medium text-[#FFB860]">Warning</span>
+          <svg class="h-4 w-4 text-valmuted shrink-0" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+      </div>
+    </section>
+
+    <!-- Tactical chat -->
+    <section class="mt-12">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-2xl md:text-3xl font-semibold tracking-tight">Tactical chat</h2>
+          <p class="mt-2 text-base text-valmuted leading-relaxed">
+            Ask follow-ups. Your callouts stay in context.
+          </p>
+        </div>
+        <div class="inline-flex items-center gap-2 rounded-full bg-valaccent/10 border border-valaccent/25 px-3 py-1 text-xs font-medium text-valaccent">
+          <span class="relative inline-flex h-2 w-2">
+            <span class="absolute inset-0 rounded-full bg-valaccent animate-pulse-dot"></span>
+            <span class="relative inline-block h-2 w-2 rounded-full bg-valaccent"></span>
+          </span>
+          Live
+        </div>
+      </div>
+
+      <div class="mt-6 rounded-[28px] bg-valcard border border-white/[0.06] shadow-apple p-5 md:p-6">
+
+        <!-- Chat log -->
+        <div class="space-y-4 mb-5 app-scroll max-h-[440px] overflow-y-auto pr-1">
+
+          <!-- assistant bubble -->
+          <div class="mr-auto max-w-[80%]">
+            <div class="text-[10px] font-medium text-valmuted mb-1 ml-2">Valai</div>
+            <div class="rounded-3xl rounded-bl-md bg-valelev border border-white/[0.06] px-4 py-3 text-sm text-valtext leading-relaxed">
+              Based on the 5 flags, your top priority is the ST — pace 78 is the biggest single capability gap vs the meta. HERO Eto'o or a Hero with similar pace+finishing would address it cleanly.
+            </div>
+          </div>
+
+          <!-- user bubble -->
+          <div class="ml-auto max-w-[80%]">
+            <div class="text-[10px] font-medium text-valmuted mb-1 mr-2 text-right">You</div>
+            <div class="rounded-3xl rounded-br-md bg-valaccent px-4 py-3 text-sm font-medium text-valbg">
+              Which player should I upgrade first?
+            </div>
+          </div>
+
+          <!-- assistant bubble -->
+          <div class="mr-auto max-w-[80%]">
+            <div class="text-[10px] font-medium text-valmuted mb-1 ml-2">Valai</div>
+            <div class="rounded-3xl rounded-bl-md bg-valelev border border-white/[0.06] px-4 py-3 text-sm text-valtext leading-relaxed">
+              Striker first. After that, the RW upgrade gives you more left-foot variety on inverted runs — but the gain is marginal vs the ST swap. Run with the ST replacement for a few games before touching the wing.
+            </div>
+          </div>
+        </div>
+
+        <!-- Liquid Glass Composer (iOS 26 Apple Intelligence style) -->
+        <div id="composer" class="liquid-glass is-focused relative flex items-center gap-2 rounded-full px-2 py-2 pl-5 transition-all">
+          <input
+            type="text"
+            placeholder="Message Valai…"
+            class="flex-1 bg-transparent text-base text-valtext placeholder:text-valmuted/70 outline-none py-1"
+            onfocus="document.getElementById('composer').classList.add('is-focused')"
+            onblur="document.getElementById('composer').classList.remove('is-focused')"
+          />
+          <button aria-label="Send"
+            class="relative z-10 grid h-10 w-10 place-items-center rounded-full bg-valaccent text-valbg shadow-send-glow hover:bg-valhover transition">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19V5"/>
+              <path d="M5 12l7-7 7 7"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Suggestion pills -->
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button class="rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-medium text-valmuted hover:border-valaccent/30 hover:text-valtext transition">
+            What tactic best fits my squad?
+          </button>
+          <button class="rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-medium text-valmuted hover:border-valaccent/30 hover:text-valtext transition">
+            Best instructions for flagged players?
+          </button>
+          <button class="rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-medium text-valmuted hover:border-valaccent/30 hover:text-valtext transition">
+            How do I press higher?
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ============================================================ -->
+<!--                       Switcher JS                             -->
+<!-- ============================================================ -->
+<script>
+  function switchView(name) {
+    document.querySelectorAll('.preview-view').forEach(el => el.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    document.querySelectorAll('.view-btn').forEach(b => {
+      b.classList.remove('bg-valaccent','text-valbg');
+      b.classList.add('text-valmuted');
+    });
+    const active = document.getElementById('btn-' + name);
+    active.classList.remove('text-valmuted');
+    active.classList.add('bg-valaccent','text-valbg');
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+  // initialize
+  switchView('home');
+</script>
+
+</body>
+</html>
