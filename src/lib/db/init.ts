@@ -62,9 +62,18 @@ CREATE TABLE IF NOT EXISTS entity_aggregates (
   negative_count INTEGER NOT NULL DEFAULT 0,
   top_positive_quote TEXT,
   top_negative_quote TEXT,
+  best_playstyles JSONB,
+  weak_points TEXT[],
+  strengths TEXT[],
+  recommended_chemstyle TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (entity_type, normalized_value)
 );
+
+ALTER TABLE entity_aggregates ADD COLUMN IF NOT EXISTS best_playstyles JSONB;
+ALTER TABLE entity_aggregates ADD COLUMN IF NOT EXISTS weak_points TEXT[];
+ALTER TABLE entity_aggregates ADD COLUMN IF NOT EXISTS strengths TEXT[];
+ALTER TABLE entity_aggregates ADD COLUMN IF NOT EXISTS recommended_chemstyle TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_aggregates_trgm
   ON entity_aggregates USING gin(normalized_value gin_trgm_ops);
