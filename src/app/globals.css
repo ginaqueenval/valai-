@@ -102,3 +102,6 @@ body {
 .app-scroll::-webkit-scrollbar-track { background: transparent; }
 .app-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
 .app-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }

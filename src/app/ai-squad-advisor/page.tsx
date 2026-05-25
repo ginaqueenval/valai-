@@ -2,22 +2,22 @@
 
 import { useState, type ChangeEvent } from "react";
 import type {
+  ChatMessage,
   DivisionLevel,
   Goal,
   Platform,
   ValbriSquadAdvisorResult,
 } from "@/lib/ai/valbriSquadAdvisorSchema";
-import { Card } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
-import { LargeTitleHeader } from "@/components/ui/LargeTitleHeader";
-import { IntakeForm } from "@/components/advisor/IntakeForm";
-import { SquadPreview } from "@/components/advisor/SquadPreview";
-import { CalloutGroup } from "@/components/advisor/CalloutGroup";
-import { SummaryBar } from "@/components/advisor/SummaryBar";
-import { ChatPanel } from "@/components/advisor/ChatPanel";
-import { StandbyHero } from "@/components/advisor/StandbyHero";
+import { DashboardTitle } from "@/components/advisor/DashboardTitle";
+import { DashboardBento } from "@/components/advisor/DashboardBento";
+import { ChatLog } from "@/components/advisor/ChatLog";
+import { ChatComposer } from "@/components/advisor/ChatComposer";
+import { BottomBar } from "@/components/layout/BottomBar";
+import { Spinner } from "@/components/ui/Spinner";
 
 export default function AiSquadAdvisorPage() {
+  // ── Analysis state ─────────────────────────────────────────────
   const [result, setResult] = useState<ValbriSquadAdvisorResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -32,6 +32,12 @@ export default function AiSquadAdvisorPage() {
   const [currentTactics, setCurrentTactics] = useState("");
 
   const [selectedCalloutId, setSelectedCalloutId] = useState<string | null>(null);
+
+  // ── Chat state (hoisted from former ChatPanel) ─────────────────
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [chatError, setChatError] = useState("");
 
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -83,23 +89,74 @@ export default function AiSquadAdvisorPage() {
     }
   }
 
-  return (
-    <main className="mx-auto max-w-3xl px-6 md:px-8 py-12 md:py-16">
-      <LargeTitleHeader
-        eyebrow="AI Squad Advisor"
-        title="Squad Advisor"
-        subtitle="Upload a squad. Set your goal. We'll do the rest."
-        status={
-          result ? (
-            <StatusPill>Analysis ready</StatusPill>
-          ) : (
-            <StatusPill dot>Engine standing by</StatusPill>
-          )
-        }
-      />
+  async function sendMessage(content: string) {
+    const trimmed = content.trim();
+    if (!trimmed || isSending || !result) return;
 
-      <Card className="p-8 md:p-10 animate-fade-in">
-        <IntakeForm
+    const nextMessages: ChatMessage[] = [
+      ...messages,
+      { role: "user", content: trimmed },
+    ];
+    setMessages(nextMessages);
+    setChatInput("");
+    setIsSending(true);
+    setChatError("");
+
+    try {
+      const response = await fetch("/api/ai/squad-chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          messages: nextMessages,
+          analysis: result,
+          platform,
+          divisionLevel,
+          goal,
+          currentTactics,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success || !data?.reply) {
+        throw new Error(
+          data?.error ?? `Chat request failed (HTTP ${response.status}).`
+        );
+      }
+      setMessages([
+        ...nextMessages,
+        { role: "assistant", content: String(data.reply) },
+      ]);
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Chat failed.");
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  return (
+    <>
+      <main className="mx-auto max-w-2xl px-4 pt-6 pb-[180px]">
+        <DashboardTitle
+          eyebrow="AI Squad Advisor"
+          title="Squad Advisor"
+          status={
+            result ? (
+              <StatusPill>Analysis ready</StatusPill>
+            ) : isLoading ? (
+              <StatusPill dot>Analyzing…</StatusPill>
+            ) : (
+              <StatusPill dot>Standing by</StatusPill>
+            )
+          }
+        />
+
+        {errorMessage ? (
+          <div className="mb-3 rounded-2xl border border-[#FF5C7A]/30 bg-[#FF5C7A]/10 px-4 py-3 text-sm text-[#FF5C7A]">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        <DashboardBento
+          result={result}
           imagePreviewUrl={imagePreviewUrl}
           selectedImageName={selectedImageName}
           onImageChange={handleImageChange}
@@ -112,79 +169,43 @@ export default function AiSquadAdvisorPage() {
           currentTactics={currentTactics}
           setCurrentTactics={setCurrentTactics}
           isLoading={isLoading}
-          errorMessage={errorMessage}
-          onSubmit={handleAnalyzeClick}
+          onRun={handleAnalyzeClick}
+          selectedCalloutId={selectedCalloutId}
+          setSelectedCalloutId={setSelectedCalloutId}
         />
-      </Card>
 
-      {result && imagePreviewUrl ? (
-        <div className="mt-10 animate-fade-in">
-          <Card className="p-5 md:p-6">
-            <SquadPreview
-              imageUrl={imagePreviewUrl}
-              callouts={result.playerCallouts}
-              selectedId={selectedCalloutId}
-              onSelect={setSelectedCalloutId}
-            />
-          </Card>
-        </div>
-      ) : !result ? (
-        <div className="mt-10">
-          <StandbyHero />
-        </div>
-      ) : null}
+        <ChatLog messages={messages} isSending={isSending} error={chatError} />
+      </main>
 
-      {result ? (
-        <>
-          <div className="mt-6 animate-fade-in">
-            <SummaryBar
-              result={result}
-              platform={platform}
-              divisionLevel={divisionLevel}
-              goal={goal}
-            />
-          </div>
-
-          <section className="mt-10 animate-fade-in">
-            <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">
-              Player callouts
-            </h2>
-            <p className="mt-2 text-base text-valmuted leading-relaxed">
-              Tap a row to highlight it on the squad and reveal the suggestion.
-            </p>
-            <div className="mt-6">
-              <CalloutGroup
-                callouts={result.playerCallouts}
-                selectedId={selectedCalloutId}
-                onSelect={setSelectedCalloutId}
-              />
-            </div>
-          </section>
-
-          <section className="mt-12 animate-fade-in">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">
-                  Tactical chat
-                </h2>
-                <p className="mt-2 text-base text-valmuted leading-relaxed">
-                  Ask follow-ups. Your callouts stay in context.
-                </p>
-              </div>
-              <StatusPill dot>Live</StatusPill>
-            </div>
-            <Card className="mt-6 p-5 md:p-6">
-              <ChatPanel
-                analysis={result}
-                platform={platform}
-                divisionLevel={divisionLevel}
-                goal={goal}
-                currentTactics={currentTactics}
-              />
-            </Card>
-          </section>
-        </>
-      ) : null}
-    </main>
+      <BottomBar>
+        {result ? (
+          <ChatComposer
+            value={chatInput}
+            onChange={setChatInput}
+            onSubmit={() => sendMessage(chatInput)}
+            isSending={isSending}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={handleAnalyzeClick}
+            disabled={!imagePreviewUrl || isLoading}
+            className={`w-full rounded-full px-6 py-3.5 text-base font-semibold transition-all ${
+              !imagePreviewUrl || isLoading
+                ? "bg-white/10 text-valmuted cursor-not-allowed"
+                : "bg-valaccent text-valbg shadow-cta-hover hover:bg-valhover"
+            } flex items-center justify-center gap-2`}
+          >
+            {isLoading ? (
+              <>
+                <Spinner className="h-4 w-4" /> Analyzing…
+              </>
+            ) : (
+              "Run Analysis"
+            )}
+          </button>
+        )}
+      </BottomBar>
+    </>
   );
 }
