@@ -178,9 +178,10 @@ export async function searchTweets(
 export async function harvestTwitter(
   queries: string[],
   maxItemsPerQuery: number
-): Promise<TwitterItem[]> {
+): Promise<{ items: TwitterItem[]; errors: string[] }> {
   console.log(`[harvest-twitter] starting ${queries.length} queries`);
   const collected: TwitterItem[] = [];
+  const errors: string[] = [];
   const seen = new Set<string>();
 
   for (const query of queries) {
@@ -194,12 +195,15 @@ export async function harvestTwitter(
         collected.push(tweet);
       }
     } catch (err) {
-      console.error(`[harvest-twitter] query failed: "${query}"`, err);
+      const msg = `query "${query}": ${(err as Error).message}`;
+      console.error(`[harvest-twitter] ${msg}`);
+      errors.push(msg);
     }
-    // Twitter Free tier: 1 request per 15 min. Be very conservative.
     await sleep(2000);
   }
 
-  console.log(`[harvest-twitter] done: ${collected.length} unique tweets`);
-  return collected;
+  console.log(
+    `[harvest-twitter] done: ${collected.length} unique tweets, ${errors.length} errors`
+  );
+  return { items: collected, errors };
 }

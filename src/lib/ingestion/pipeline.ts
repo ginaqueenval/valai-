@@ -330,8 +330,12 @@ export async function runPipeline(): Promise<PipelineReport> {
   console.log(`[pipeline] harvesting from Twitter with ${TWITTER_QUERIES.length} queries`);
   let allItems: TwitterItem[] = [];
   try {
-    allItems = await harvestTwitter(TWITTER_QUERIES, MAX_ITEMS_PER_QUERY);
-    console.log(`[pipeline] Twitter yielded ${allItems.length} items`);
+    const result = await harvestTwitter(TWITTER_QUERIES, MAX_ITEMS_PER_QUERY);
+    allItems = result.items;
+    console.log(`[pipeline] Twitter yielded ${allItems.length} items, ${result.errors.length} errors`);
+    for (const e of result.errors) {
+      report.errors.push(`harvestTwitter: ${e}`);
+    }
   } catch (err) {
     const msg = `harvestTwitter: ${(err as Error).message}`;
     console.error(`[pipeline] ${msg}`);
