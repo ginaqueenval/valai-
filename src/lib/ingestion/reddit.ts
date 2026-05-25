@@ -18,10 +18,10 @@ export type RedditItem = {
   imageUrl?: string | null;
 };
 
-// Use environment variable if set, otherwise use a standard user agent
-// Reddit requires a valid User-Agent in the format: /r/subreddit bot version
-const USER_AGENT = (process.env.REDDIT_USER_AGENT ?? "").trim() || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
-console.log(`[reddit] USER_AGENT: ${USER_AGENT}`);
+// Reddit blocks requests with invalid/custom User-Agent.
+// Use a standard browser UA that Reddit won't block.
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36";
+console.log(`[reddit] USER_AGENT initialized`);
 
 const POST_FETCH_LIMIT = 50;
 const COMMENT_FETCH_LIMIT = 50;
