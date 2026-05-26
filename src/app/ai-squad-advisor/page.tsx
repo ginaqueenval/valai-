@@ -411,12 +411,17 @@ export default function AiSquadAdvisorPage() {
         {entries.map((entry, idx) => {
           // Only the latest ai-match-plan gets pivot chips. Older plans are
           // history — clicking a chip on an old plan would re-run from stale
-          // state and confuse the thread.
+          // state and confuse the thread. We include "replanning" here so the
+          // chips render in their disabled (isPivoting) state during a re-plan
+          // instead of disappearing.
           const isLatestPlan =
             entry.kind === "ai-match-plan" &&
             idx === lastPlanIndex &&
-            (phase.type === "ready" || phase.type === "chatting");
+            (phase.type === "ready" ||
+              phase.type === "chatting" ||
+              phase.type === "replanning");
 
+          const currentPhaseType = phase.type;
           const augmented =
             isLatestPlan && entry.kind === "ai-match-plan"
               ? {
@@ -426,7 +431,7 @@ export default function AiSquadAdvisorPage() {
                       buildMatchPlan(phase.squad, style);
                     }
                   },
-                  isPivoting: phase.type === "replanning",
+                  isPivoting: currentPhaseType === "replanning",
                 }
               : entry;
 
