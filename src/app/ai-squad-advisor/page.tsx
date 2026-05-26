@@ -17,6 +17,7 @@ import {
 } from "@/components/advisor/StreamMessage";
 import type {
   MatchPlan,
+  PlayStyle,
   Squad,
   SquadDraft,
 } from "@/lib/ai/matchPlanSchema";
@@ -135,7 +136,7 @@ export default function AiSquadAdvisorPage() {
     }
   }
 
-  async function buildMatchPlan(squad: Squad, styleOverride?: string) {
+  async function buildMatchPlan(squad: Squad, styleOverride?: PlayStyle) {
     const loadingId = nextId();
     appendEntry({
       id: loadingId,
@@ -153,8 +154,14 @@ export default function AiSquadAdvisorPage() {
       )
     );
 
+    // Capture the previous plan so we can restore it on failure during a pivot.
+    const prevReadyPlan =
+      phase.type === "ready" || phase.type === "chatting"
+        ? phase.plan
+        : null;
+
     setPhase((prev) =>
-      prev.type === "ready"
+      prev.type === "ready" || prev.type === "chatting"
         ? { type: "replanning", squad: prev.squad, plan: prev.plan }
         : { type: "planning", squad }
     );
@@ -190,7 +197,13 @@ export default function AiSquadAdvisorPage() {
             ? err.message
             : "Failed to build match plan. Please try again.",
       });
-      setPhase({ type: "confirming", draft: { ...squad, confidence: "high" } });
+      // Failed re-plan: keep the user on the previous plan, not back at
+      // squad confirmation. Failed initial plan: drop back to confirming.
+      if (prevReadyPlan) {
+        setPhase({ type: "ready", squad, plan: prevReadyPlan });
+      } else {
+        setPhase({ type: "confirming", draft: { ...squad, confidence: "high" } });
+      }
     }
   }
 
@@ -276,6 +289,13 @@ export default function AiSquadAdvisorPage() {
       : "needs-squad";
   }, [phase.type]);
 
+  const lastPlanIndex = useMemo(() => {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (entries[i].kind === "ai-match-plan") return i;
+    }
+    return -1;
+  }, [entries]);
+
   const status = useMemo(() => {
     switch (phase.type) {
       case "idle":
@@ -304,9 +324,30 @@ export default function AiSquadAdvisorPage() {
       />
 
       <div className="mt-6 flex flex-col gap-4">
-        {entries.map((entry) => (
-          <StreamMessage key={entry.id} entry={entry} />
-        ))}
+        {entries.map((entry, idx) => {
+          // Only the latest ai-match-plan gets pivot chips. Older plans are
+          // history — clicking a chip on an old plan would re-run from stale
+          // state and confuse the thread.
+          const isLatestPlan =
+            entry.kind === "ai-match-plan" &&
+            idx === lastPlanIndex &&
+            (phase.type === "ready" || phase.type === "chatting");
+
+          const augmented =
+            isLatestPlan && entry.kind === "ai-match-plan"
+              ? {
+                  ...entry,
+                  onPivot: (style: PlayStyle) => {
+                    if (phase.type === "ready" || phase.type === "chatting") {
+                      buildMatchPlan(phase.squad, style);
+                    }
+                  },
+                  isPivoting: phase.type === "replanning",
+                }
+              : entry;
+
+          return <StreamMessage key={entry.id} entry={augmented} />;
+        })}
         <div ref={scrollEndRef} />
       </div>
 

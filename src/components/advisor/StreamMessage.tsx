@@ -6,6 +6,7 @@
 
 import type {
   MatchPlan,
+  PlayStyle,
   Squad,
   SquadDraft,
 } from "@/lib/ai/matchPlanSchema";
@@ -25,7 +26,15 @@ export type StreamEntry =
       isConfirming?: boolean;
       onConfirm: (squad: Squad) => void;
     }
-  | { id: string; kind: "ai-match-plan"; plan: MatchPlan }
+  | {
+      id: string;
+      kind: "ai-match-plan";
+      plan: MatchPlan;
+      /** When set, the latest plan in the thread shows pivot chips. Older
+       *  plans don't — they're history. */
+      onPivot?: (style: PlayStyle) => void;
+      isPivoting?: boolean;
+    }
   | { id: string; kind: "system-error"; content: string };
 
 function UserBubble({ children }: { children: React.ReactNode }) {
@@ -110,7 +119,11 @@ export function StreamMessage({ entry }: { entry: StreamEntry }) {
     case "ai-match-plan":
       return (
         <AssistantBubble>
-          <MatchPlanCards plan={entry.plan} />
+          <MatchPlanCards
+            plan={entry.plan}
+            onPivot={entry.onPivot}
+            isPivoting={entry.isPivoting}
+          />
         </AssistantBubble>
       );
 

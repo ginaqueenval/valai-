@@ -6,7 +6,24 @@
 
 import type { MatchPlan, PlayStyle } from "@/lib/ai/matchPlanSchema";
 
-type Props = { plan: MatchPlan };
+type Props = {
+  plan: MatchPlan;
+  /** Style chips appear when an onPivot handler is provided. The chip for the
+   *  plan's current style is hidden — pivoting to the same style is a no-op. */
+  onPivot?: (style: PlayStyle) => void;
+  /** Disable chips while a re-plan is in flight. */
+  isPivoting?: boolean;
+};
+
+/** The 4 styles we surface as quick chips. Other styles are still reachable
+ *  via free-form chat. We keep this set small so users don't get analysis
+ *  paralysis. */
+const PIVOT_STYLES: PlayStyle[] = [
+  "possession",
+  "counter-attack",
+  "high-press",
+  "wing-play",
+];
 
 const STYLE_LABEL: Record<PlayStyle, string> = {
   possession: "Possession",
@@ -62,7 +79,7 @@ function Slider({ label, value }: { label: string; value: number }) {
   );
 }
 
-export function MatchPlanCards({ plan }: Props) {
+export function MatchPlanCards({ plan, onPivot, isPivoting }: Props) {
   const tactics = plan.customTactics ?? {};
 
   // Headline + reasoning + chosen style live on one hero card.
@@ -225,6 +242,34 @@ export function MatchPlanCards({ plan }: Props) {
     </SectionCard>
   ) : null;
 
+  const pivotCard = onPivot ? (
+    <div className="rounded-3xl border border-white/[0.06] bg-valelev p-5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-valmuted">
+        Try a different style
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-valmuted">
+        I&apos;ll rebuild the plan and tell you what changes — including the player swaps that make it work.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {PIVOT_STYLES.filter((s) => s !== plan.styleOfPlay).map((style) => (
+          <button
+            key={style}
+            type="button"
+            onClick={() => onPivot(style)}
+            disabled={isPivoting}
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+              isPivoting
+                ? "border-white/[0.06] bg-white/[0.04] text-valmuted cursor-not-allowed"
+                : "border-valaccent/25 bg-valaccent/[0.06] text-valaccent hover:bg-valaccent/[0.12]"
+            }`}
+          >
+            {styleLabel(style)}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="flex flex-col gap-3">
       {hero}
@@ -235,6 +280,7 @@ export function MatchPlanCards({ plan }: Props) {
       {planBCard}
       {alternativeCard}
       {matchupCard}
+      {pivotCard}
     </div>
   );
 }
