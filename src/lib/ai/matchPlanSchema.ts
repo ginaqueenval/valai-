@@ -208,6 +208,11 @@ export type SquadExtractResponse =
 
 export type MatchPlanRequest = {
   squad: Squad;
+  /** Optional opponent squad. When provided, the AI builds a counter-tactical
+   *  plan tailored to nullifying THIS specific opponent — formation choice,
+   *  marking priorities, pressing height, watch-outs all shift. When omitted,
+   *  the plan is the generic best fit for the user's own squad. */
+  opponentSquad?: Squad;
   platform?: Platform;
   /** Free-text from the user about their context: "I want to beat my friend",
    *  "Weekend League grind", etc. Optional. */

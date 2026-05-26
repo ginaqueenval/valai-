@@ -165,6 +165,9 @@ export async function POST(request: Request) {
 
   const userText = buildMatchPlanUserText({
     squadJson: JSON.stringify(body.squad, null, 2),
+    opponentSquadJson: body.opponentSquad
+      ? JSON.stringify(body.opponentSquad, null, 2)
+      : undefined,
     platform: body.platform,
     userContext: body.userContext,
     styleOverride: body.styleOverride,

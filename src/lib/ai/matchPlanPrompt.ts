@@ -169,6 +169,9 @@ correct when the squad is solid.
 /** Builds the user-side prompt that wraps the squad JSON and any context. */
 export function buildMatchPlanUserText(args: {
   squadJson: string;
+  /** Opponent squad JSON. When present, the model shifts into counter-tactical
+   *  mode — design the plan around beating this specific lineup. */
+  opponentSquadJson?: string;
   platform?: string;
   userContext?: string;
   styleOverride?: string;
@@ -192,8 +195,25 @@ export function buildMatchPlanUserText(args: {
   }
 
   lines.push("");
-  lines.push("Squad (JSON):");
+  lines.push("User squad (JSON):");
   lines.push(args.squadJson);
+
+  if (args.opponentSquadJson) {
+    lines.push("");
+    lines.push("Opponent squad (JSON):");
+    lines.push(args.opponentSquadJson);
+    lines.push("");
+    lines.push(
+      "MODE: COUNTER-TACTICAL. Build the plan to BEAT this specific opponent. " +
+        "Read their lineup, identify their dangermen and structural weak spots, " +
+        "then choose the user's formation, style, instructions, and Plan B " +
+        "around neutralizing their strengths and exploiting their gaps. " +
+        "matchupHints should reference the opponent by their formation / key " +
+        "players, not generic phrases. watchOut should call out the specific " +
+        "opponent threats (e.g. 'their LW has pace 92 — your RB must stay back')."
+    );
+  }
+
   lines.push("");
   lines.push(
     "Return only the MatchPlan JSON, matching the schema in your system " +
