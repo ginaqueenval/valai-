@@ -35,7 +35,14 @@ export type StreamEntry =
       onPivot?: (style: PlayStyle) => void;
       isPivoting?: boolean;
     }
-  | { id: string; kind: "system-error"; content: string };
+  | {
+      id: string;
+      kind: "system-error";
+      content: string;
+      /** Optional retry handler. When present the error renders a button. */
+      onRetry?: () => void;
+      retryLabel?: string;
+    };
 
 function UserBubble({ children }: { children: React.ReactNode }) {
   return (
@@ -129,8 +136,17 @@ export function StreamMessage({ entry }: { entry: StreamEntry }) {
 
     case "system-error":
       return (
-        <div className="mx-auto max-w-[90%] rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200 animate-slide-up">
-          {entry.content}
+        <div className="mx-auto flex max-w-[90%] flex-col items-start gap-2 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200 animate-slide-up">
+          <div>{entry.content}</div>
+          {entry.onRetry ? (
+            <button
+              type="button"
+              onClick={entry.onRetry}
+              className="rounded-full border border-rose-300/30 bg-rose-300/10 px-3 py-1 text-xs font-medium text-rose-100 transition hover:bg-rose-300/20"
+            >
+              {entry.retryLabel ?? "Try again"}
+            </button>
+          ) : null}
         </div>
       );
   }

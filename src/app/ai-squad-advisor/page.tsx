@@ -21,6 +21,7 @@ import type {
   Squad,
   SquadDraft,
 } from "@/lib/ai/matchPlanSchema";
+import { clearSession, loadSession, saveSession } from "@/lib/storage/session";
 
 type Phase =
   | { type: "idle" }
@@ -52,8 +53,43 @@ export default function AiSquadAdvisorPage() {
   const [attachedImage, setAttachedImage] = useState<File | null>(null);
   const [attachedImageUrl, setAttachedImageUrl] = useState("");
   const [pendingUserContext, setPendingUserContext] = useState("");
+  const [hydrated, setHydrated] = useState(false);
 
   const scrollEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Hydrate from localStorage on mount. We restore squad + plan + context as
+  // a "resumed session" message so the user understands they're picking up
+  // where they left off, not starting fresh.
+  useEffect(() => {
+    const stored = loadSession();
+    setHydrated(true);
+    if (!stored) return;
+
+    setPendingUserContext(stored.userContext);
+    setPhase({ type: "ready", squad: stored.squad, plan: stored.plan });
+    setEntries([
+      {
+        id: nextId(),
+        kind: "ai-text",
+        content:
+          "Picking up from your last session. Your match plan is below — ask follow-ups, pivot the style, or reset to start over.",
+      },
+      { id: nextId(), kind: "ai-match-plan", plan: stored.plan },
+    ]);
+  }, []);
+
+  // Persist whenever phase carries a ready plan. We only save on the "ready"
+  // edges so we don't write during loading transitions.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (phase.type === "ready") {
+      saveSession({
+        squad: phase.squad,
+        plan: phase.plan,
+        userContext: pendingUserContext,
+      });
+    }
+  }, [hydrated, phase, pendingUserContext]);
 
   function appendEntry(entry: StreamEntry) {
     setEntries((prev) => [...prev, entry]);
@@ -131,6 +167,8 @@ export default function AiSquadAdvisorPage() {
           err instanceof Error
             ? err.message
             : "Failed to extract squad. Please try again.",
+        onRetry: () => extractSquad(file, caption),
+        retryLabel: "Retry extraction",
       });
       setPhase({ type: "idle" });
     }
@@ -196,6 +234,8 @@ export default function AiSquadAdvisorPage() {
           err instanceof Error
             ? err.message
             : "Failed to build match plan. Please try again.",
+        onRetry: () => buildMatchPlan(squad, styleOverride),
+        retryLabel: styleOverride ? "Retry re-plan" : "Retry plan",
       });
       // Failed re-plan: keep the user on the previous plan, not back at
       // squad confirmation. Failed initial plan: drop back to confirming.
@@ -260,10 +300,28 @@ export default function AiSquadAdvisorPage() {
           err instanceof Error
             ? err.message
             : "Chat request failed. Please try again.",
+        onRetry: () => sendChatMessage(trimmed),
+        retryLabel: "Retry",
       });
     } finally {
       setPhase({ type: "ready", squad: prevPhase.squad, plan: prevPhase.plan });
     }
+  }
+
+  function handleResetSession() {
+    clearSession();
+    setPhase({ type: "idle" });
+    setPendingUserContext("");
+    handleAttachImage(null);
+    setComposerText("");
+    setEntries([
+      {
+        id: nextId(),
+        kind: "ai-text",
+        content:
+          "Fresh start. Drop a new squad screenshot whenever you're ready.",
+      },
+    ]);
   }
 
   function handleComposerSubmit() {
@@ -297,21 +355,47 @@ export default function AiSquadAdvisorPage() {
   }, [entries]);
 
   const status = useMemo(() => {
-    switch (phase.type) {
-      case "idle":
-        return <StatusPill dot>Ready</StatusPill>;
-      case "extracting":
-        return <StatusPill dot>Reading squad</StatusPill>;
-      case "confirming":
-        return <StatusPill dot>Confirm lineup</StatusPill>;
-      case "planning":
-      case "replanning":
-        return <StatusPill dot>Building plan</StatusPill>;
-      case "ready":
-        return <StatusPill>Plan ready</StatusPill>;
-      case "chatting":
-        return <StatusPill dot>Thinking</StatusPill>;
-    }
+    const pill = (() => {
+      switch (phase.type) {
+        case "idle":
+          return <StatusPill dot>Ready</StatusPill>;
+        case "extracting":
+          return <StatusPill dot>Reading squad</StatusPill>;
+        case "confirming":
+          return <StatusPill dot>Confirm lineup</StatusPill>;
+        case "planning":
+        case "replanning":
+          return <StatusPill dot>Building plan</StatusPill>;
+        case "ready":
+          return <StatusPill>Plan ready</StatusPill>;
+        case "chatting":
+          return <StatusPill dot>Thinking</StatusPill>;
+      }
+    })();
+
+    // Once there's a plan, show a Reset button next to the status so the user
+    // can wipe persisted state and start over without spelunking through
+    // browser storage.
+    const showReset =
+      phase.type === "ready" ||
+      phase.type === "chatting" ||
+      phase.type === "replanning";
+
+    return (
+      <div className="flex items-center gap-2">
+        {pill}
+        {showReset ? (
+          <button
+            type="button"
+            onClick={handleResetSession}
+            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-valmuted transition hover:bg-white/[0.08] hover:text-valtext"
+          >
+            Reset
+          </button>
+        ) : null}
+      </div>
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.type]);
 
   return (
