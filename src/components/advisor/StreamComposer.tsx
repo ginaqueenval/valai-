@@ -22,6 +22,9 @@ type Props = {
   mode: "needs-squad" | "chat";
   /** When true, prevent sending without an image. */
   requireImage?: boolean;
+  /** Hide the paperclip / attach affordance entirely. Set this in modes
+   *  where image upload happens elsewhere (e.g. the idle DualUploadCard). */
+  hideAttach?: boolean;
 };
 
 export function StreamComposer({
@@ -34,6 +37,7 @@ export function StreamComposer({
   isSending,
   mode,
   requireImage,
+  hideAttach,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -90,23 +94,27 @@ export function StreamComposer({
       ) : null}
 
       <div className="flex items-center gap-2">
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          aria-label="Attach squad screenshot"
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-valtext transition hover:bg-white/[0.1]"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12.5L13.5 20a5 5 0 01-7-7L14 5.5a3.5 3.5 0 014.95 4.95L11.5 18a2 2 0 11-2.83-2.83l6.36-6.36" />
-          </svg>
-        </button>
+        {hideAttach ? null : (
+          <>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              aria-label="Attach squad screenshot"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-valtext transition hover:bg-white/[0.1]"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.5L13.5 20a5 5 0 01-7-7L14 5.5a3.5 3.5 0 014.95 4.95L11.5 18a2 2 0 11-2.83-2.83l6.36-6.36" />
+              </svg>
+            </button>
+          </>
+        )}
 
         <input
           type="text"

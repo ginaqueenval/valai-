@@ -15,6 +15,7 @@ import {
   StreamMessage,
   type StreamEntry,
 } from "@/components/advisor/StreamMessage";
+import { DualUploadCard } from "@/components/advisor/DualUploadCard";
 import type {
   MatchPlan,
   PlayStyle,
@@ -26,11 +27,21 @@ import { clearSession, loadSession, saveSession } from "@/lib/storage/session";
 type Phase =
   | { type: "idle" }
   | { type: "extracting" }
-  | { type: "confirming"; draft: SquadDraft }
-  | { type: "planning"; squad: Squad }
-  | { type: "ready"; squad: Squad; plan: MatchPlan }
-  | { type: "replanning"; squad: Squad; plan: MatchPlan }
-  | { type: "chatting"; squad: Squad; plan: MatchPlan };
+  | { type: "confirming"; draft: SquadDraft; opponentSquad: Squad | null }
+  | { type: "planning"; squad: Squad; opponentSquad: Squad | null }
+  | { type: "ready"; squad: Squad; plan: MatchPlan; opponentSquad: Squad | null }
+  | {
+      type: "replanning";
+      squad: Squad;
+      plan: MatchPlan;
+      opponentSquad: Squad | null;
+    }
+  | {
+      type: "chatting";
+      squad: Squad;
+      plan: MatchPlan;
+      opponentSquad: Squad | null;
+    };
 
 let entryCounter = 0;
 function nextId() {
@@ -40,18 +51,20 @@ function nextId() {
 
 export default function AiSquadAdvisorPage() {
   const [phase, setPhase] = useState<Phase>({ type: "idle" });
-  const [entries, setEntries] = useState<StreamEntry[]>(() => [
-    {
-      id: nextId(),
-      kind: "ai-text",
-      content:
-        "Hi. Drop a squad screenshot and I'll build you a match plan — formation, tactics, key instructions, and a Plan B. Add a sentence about what you're trying to do if you want me to calibrate.",
-    },
-  ]);
+  // In idle the dual upload card carries the conversation, so we start with
+  // an empty thread. The first stream entries get appended once the user
+  // submits a squad.
+  const [entries, setEntries] = useState<StreamEntry[]>([]);
 
+  // Dual upload slots: left = user's own squad (required), right = opponent
+  // (optional, triggers counter-tactical mode).
+  const [selfImage, setSelfImage] = useState<File | null>(null);
+  const [selfImageUrl, setSelfImageUrl] = useState("");
+  const [opponentImage, setOpponentImage] = useState<File | null>(null);
+  const [opponentImageUrl, setOpponentImageUrl] = useState("");
+
+  // Composer is for follow-up chat after a plan exists.
   const [composerText, setComposerText] = useState("");
-  const [attachedImage, setAttachedImage] = useState<File | null>(null);
-  const [attachedImageUrl, setAttachedImageUrl] = useState("");
   const [pendingUserContext, setPendingUserContext] = useState("");
   const [hydrated, setHydrated] = useState(false);
 
@@ -66,7 +79,12 @@ export default function AiSquadAdvisorPage() {
     if (!stored) return;
 
     setPendingUserContext(stored.userContext);
-    setPhase({ type: "ready", squad: stored.squad, plan: stored.plan });
+    setPhase({
+      type: "ready",
+      squad: stored.squad,
+      plan: stored.plan,
+      opponentSquad: null,
+    });
     setEntries([
       {
         id: nextId(),
@@ -109,79 +127,150 @@ export default function AiSquadAdvisorPage() {
     phase.type === "replanning" ||
     phase.type === "chatting";
 
-  function handleAttachImage(file: File | null) {
-    if (attachedImageUrl) URL.revokeObjectURL(attachedImageUrl);
+  function handleSelfImageChange(file: File | null) {
+    if (selfImageUrl) URL.revokeObjectURL(selfImageUrl);
     if (file) {
-      setAttachedImage(file);
-      setAttachedImageUrl(URL.createObjectURL(file));
+      setSelfImage(file);
+      setSelfImageUrl(URL.createObjectURL(file));
     } else {
-      setAttachedImage(null);
-      setAttachedImageUrl("");
+      setSelfImage(null);
+      setSelfImageUrl("");
     }
   }
 
-  async function extractSquad(file: File, caption: string) {
-    const userImageEntryId = nextId();
+  function handleOpponentImageChange(file: File | null) {
+    if (opponentImageUrl) URL.revokeObjectURL(opponentImageUrl);
+    if (file) {
+      setOpponentImage(file);
+      setOpponentImageUrl(URL.createObjectURL(file));
+    } else {
+      setOpponentImage(null);
+      setOpponentImageUrl("");
+    }
+  }
+
+  /** Calls the squad-extract endpoint for a single image. Returns the draft
+   *  on success, throws on failure. */
+  async function extractOneSquad(file: File): Promise<SquadDraft> {
+    const fd = new FormData();
+    fd.append("squadImage", file);
+    const res = await fetch("/api/ai/squad-extract", { method: "POST", body: fd });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success || !data?.draft) {
+      throw new Error(data?.error ?? `Extract failed (HTTP ${res.status}).`);
+    }
+    return data.draft as SquadDraft;
+  }
+
+  /** Pull the self image (required) and opponent image (optional) through
+   *  vision extraction in parallel. The self draft gets confirmed by the
+   *  user; the opponent is parsed silently and threaded into the plan call.
+   *  Opponent extraction failing is non-fatal — we fall back to the
+   *  single-squad path. */
+  async function extractAndConfirm(self: File, opponent: File | null) {
+    // Drop the user-uploaded images into the stream as visible messages so
+    // the user has a record of what they sent.
     appendEntry({
-      id: userImageEntryId,
+      id: nextId(),
       kind: "user-image",
-      imageUrl: URL.createObjectURL(file),
-      caption: caption.trim() || undefined,
+      imageUrl: URL.createObjectURL(self),
+      caption: opponent ? "My squad" : undefined,
     });
+    if (opponent) {
+      appendEntry({
+        id: nextId(),
+        kind: "user-image",
+        imageUrl: URL.createObjectURL(opponent),
+        caption: "Opponent",
+      });
+    }
 
     const loadingId = nextId();
     appendEntry({
       id: loadingId,
       kind: "ai-loading",
-      label: "Reading your squad…",
+      label: opponent ? "Reading both squads…" : "Reading your squad…",
     });
 
     setPhase({ type: "extracting" });
 
-    try {
-      const fd = new FormData();
-      fd.append("squadImage", file);
-      const res = await fetch("/api/ai/squad-extract", {
-        method: "POST",
-        body: fd,
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.success || !data?.draft) {
-        throw new Error(data?.error ?? `Extract failed (HTTP ${res.status}).`);
-      }
+    const [selfResult, opponentResult] = await Promise.allSettled([
+      extractOneSquad(self),
+      opponent ? extractOneSquad(opponent) : Promise.resolve(null),
+    ]);
 
-      const draft = data.draft as SquadDraft;
-
-      replaceEntry(loadingId, {
-        id: loadingId,
-        kind: "ai-squad-draft",
-        draft,
-        onConfirm: (squad) => buildMatchPlan(squad),
-      });
-      setPhase({ type: "confirming", draft });
-    } catch (err) {
+    if (selfResult.status === "rejected") {
       replaceEntry(loadingId, {
         id: loadingId,
         kind: "system-error",
         content:
-          err instanceof Error
-            ? err.message
-            : "Failed to extract squad. Please try again.",
-        onRetry: () => extractSquad(file, caption),
+          selfResult.reason instanceof Error
+            ? selfResult.reason.message
+            : "Failed to extract your squad. Please try again.",
+        onRetry: () => extractAndConfirm(self, opponent),
         retryLabel: "Retry extraction",
       });
       setPhase({ type: "idle" });
+      return;
     }
+
+    const draft = selfResult.value;
+
+    let opponentSquad: Squad | null = null;
+    if (opponent) {
+      if (opponentResult.status === "fulfilled" && opponentResult.value) {
+        const oppDraft = opponentResult.value;
+        opponentSquad = {
+          formation: oppDraft.formation,
+          players: oppDraft.players,
+        };
+      } else {
+        // Silent degrade: the user gets a soft warning but the flow continues
+        // as a single-squad plan.
+        appendEntry({
+          id: nextId(),
+          kind: "system-error",
+          content:
+            "Couldn't read the opponent screenshot — continuing without counter-tactic.",
+        });
+      }
+    }
+
+    replaceEntry(loadingId, {
+      id: loadingId,
+      kind: "ai-squad-draft",
+      draft,
+      onConfirm: (squad) => buildMatchPlan(squad, undefined, opponentSquad),
+    });
+    setPhase({ type: "confirming", draft, opponentSquad });
   }
 
-  async function buildMatchPlan(squad: Squad, styleOverride?: PlayStyle) {
+  async function buildMatchPlan(
+    squad: Squad,
+    styleOverride?: PlayStyle,
+    opponentOverride?: Squad | null
+  ) {
+    // For re-plans (pivots), reuse the opponent that the active plan was
+    // built against. For first plans, opponentOverride is the value the
+    // confirmation flow handed us.
+    const opponentSquad =
+      opponentOverride !== undefined
+        ? opponentOverride
+        : phase.type === "ready" ||
+            phase.type === "chatting" ||
+            phase.type === "replanning"
+          ? phase.opponentSquad
+          : null;
+
     const loadingId = nextId();
     appendEntry({
       id: loadingId,
       kind: "ai-loading",
       label: styleOverride
         ? `Rebuilding plan for ${styleOverride}…`
-        : "Building your match plan…",
+        : opponentSquad
+          ? "Building counter-tactic plan…"
+          : "Building your match plan…",
     });
 
     // Mark the existing squad-draft entry (if any) as a static confirmation so
@@ -200,8 +289,13 @@ export default function AiSquadAdvisorPage() {
 
     setPhase((prev) =>
       prev.type === "ready" || prev.type === "chatting"
-        ? { type: "replanning", squad: prev.squad, plan: prev.plan }
-        : { type: "planning", squad }
+        ? {
+            type: "replanning",
+            squad: prev.squad,
+            plan: prev.plan,
+            opponentSquad: prev.opponentSquad,
+          }
+        : { type: "planning", squad, opponentSquad }
     );
 
     try {
@@ -210,6 +304,7 @@ export default function AiSquadAdvisorPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           squad,
+          opponentSquad: opponentSquad ?? undefined,
           userContext: pendingUserContext || undefined,
           styleOverride,
         }),
@@ -225,7 +320,7 @@ export default function AiSquadAdvisorPage() {
         kind: "ai-match-plan",
         plan,
       });
-      setPhase({ type: "ready", squad, plan });
+      setPhase({ type: "ready", squad, plan, opponentSquad });
     } catch (err) {
       replaceEntry(loadingId, {
         id: loadingId,
@@ -234,15 +329,19 @@ export default function AiSquadAdvisorPage() {
           err instanceof Error
             ? err.message
             : "Failed to build match plan. Please try again.",
-        onRetry: () => buildMatchPlan(squad, styleOverride),
+        onRetry: () => buildMatchPlan(squad, styleOverride, opponentSquad),
         retryLabel: styleOverride ? "Retry re-plan" : "Retry plan",
       });
       // Failed re-plan: keep the user on the previous plan, not back at
       // squad confirmation. Failed initial plan: drop back to confirming.
       if (prevReadyPlan) {
-        setPhase({ type: "ready", squad, plan: prevReadyPlan });
+        setPhase({ type: "ready", squad, plan: prevReadyPlan, opponentSquad });
       } else {
-        setPhase({ type: "confirming", draft: { ...squad, confidence: "high" } });
+        setPhase({
+          type: "confirming",
+          draft: { ...squad, confidence: "high" },
+          opponentSquad,
+        });
       }
     }
   }
@@ -259,7 +358,12 @@ export default function AiSquadAdvisorPage() {
     appendEntry({ id: loadingId, kind: "ai-loading", label: "Thinking…" });
 
     const prevPhase = phase;
-    setPhase({ type: "chatting", squad: prevPhase.squad, plan: prevPhase.plan });
+    setPhase({
+      type: "chatting",
+      squad: prevPhase.squad,
+      plan: prevPhase.plan,
+      opponentSquad: prevPhase.opponentSquad,
+    });
 
     // Build chat history from prior user-text / ai-text entries.
     const history = entries
@@ -304,7 +408,12 @@ export default function AiSquadAdvisorPage() {
         retryLabel: "Retry",
       });
     } finally {
-      setPhase({ type: "ready", squad: prevPhase.squad, plan: prevPhase.plan });
+      setPhase({
+        type: "ready",
+        squad: prevPhase.squad,
+        plan: prevPhase.plan,
+        opponentSquad: prevPhase.opponentSquad,
+      });
     }
   }
 
@@ -312,28 +421,28 @@ export default function AiSquadAdvisorPage() {
     clearSession();
     setPhase({ type: "idle" });
     setPendingUserContext("");
-    handleAttachImage(null);
+    handleSelfImageChange(null);
+    handleOpponentImageChange(null);
     setComposerText("");
-    setEntries([
-      {
-        id: nextId(),
-        kind: "ai-text",
-        content:
-          "Fresh start. Drop a new squad screenshot whenever you're ready.",
-      },
-    ]);
+    setEntries([]);
+  }
+
+  function handleDualSubmit() {
+    if (!selfImage) return;
+    const self = selfImage;
+    const opponent = opponentImage;
+    // Don't reset the URLs immediately — the stream entries below hold their
+    // own object URLs (created in extractAndConfirm). Clearing now would
+    // revoke the URLs the dual card still owns; we clear after extract is
+    // queued.
+    setSelfImage(null);
+    setSelfImageUrl("");
+    setOpponentImage(null);
+    setOpponentImageUrl("");
+    extractAndConfirm(self, opponent);
   }
 
   function handleComposerSubmit() {
-    if (attachedImage) {
-      const file = attachedImage;
-      const caption = composerText;
-      setPendingUserContext(caption.trim());
-      handleAttachImage(null);
-      setComposerText("");
-      extractSquad(file, caption);
-      return;
-    }
     if (phase.type === "ready" || phase.type === "chatting") {
       const text = composerText;
       setComposerText("");
@@ -341,11 +450,13 @@ export default function AiSquadAdvisorPage() {
     }
   }
 
-  const composerMode = useMemo<"needs-squad" | "chat">(() => {
-    return phase.type === "ready" || phase.type === "chatting"
-      ? "chat"
-      : "needs-squad";
-  }, [phase.type]);
+  // The composer is now ONLY for follow-up chat. Initial uploads happen via
+  // the dual upload card in idle. We mount the composer only after a plan
+  // exists.
+  const showComposer =
+    phase.type === "ready" ||
+    phase.type === "chatting" ||
+    phase.type === "replanning";
 
   const lastPlanIndex = useMemo(() => {
     for (let i = entries.length - 1; i >= 0; i--) {
@@ -398,14 +509,35 @@ export default function AiSquadAdvisorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.type]);
 
+  const isIdle = phase.type === "idle";
+
   return (
-    <main className="mx-auto flex min-h-[100dvh] max-w-2xl flex-col px-4 pt-8 pb-[140px] md:px-6">
-      <LargeTitleHeader
-        eyebrow="AI Squad Advisor"
-        title="Match Plan"
-        subtitle="Upload your squad. Get an opinionated plan. Ask follow-ups."
-        status={status}
-      />
+    <main
+      className={`mx-auto flex min-h-[100dvh] max-w-2xl flex-col px-4 md:px-6 ${
+        isIdle ? "pt-6 pb-6" : "pt-8 pb-[140px]"
+      }`}
+    >
+      {isIdle ? (
+        // Idle state: no header, no welcome text. The dual upload card IS the
+        // conversation entry point.
+        <div className="mt-6 flex flex-1 flex-col items-center justify-center">
+          <DualUploadCard
+            selfImageUrl={selfImageUrl}
+            opponentImageUrl={opponentImageUrl}
+            onSelfImageChange={handleSelfImageChange}
+            onOpponentImageChange={handleOpponentImageChange}
+            onSubmit={handleDualSubmit}
+            isSubmitting={false}
+          />
+        </div>
+      ) : (
+        <LargeTitleHeader
+          eyebrow="AI Squad Advisor"
+          title="Match Plan"
+          subtitle="Upload your squad. Get an opinionated plan. Ask follow-ups."
+          status={status}
+        />
+      )}
 
       <div className="mt-6 flex flex-col gap-4">
         {entries.map((entry, idx) => {
@@ -440,20 +572,23 @@ export default function AiSquadAdvisorPage() {
         <div ref={scrollEndRef} />
       </div>
 
+      {showComposer ? (
       <div className="fixed inset-x-0 bottom-0 z-50 px-4 pb-4 md:px-6 md:pb-6">
         <div className="mx-auto max-w-2xl">
           <StreamComposer
             value={composerText}
             onChange={setComposerText}
-            attachedImage={attachedImage}
-            attachedImageUrl={attachedImageUrl}
-            onAttachImage={handleAttachImage}
+            attachedImage={null}
+            attachedImageUrl=""
+            onAttachImage={() => {}}
             onSubmit={handleComposerSubmit}
             isSending={isBusy}
-            mode={composerMode}
+            mode="chat"
+            hideAttach
           />
         </div>
       </div>
+      ) : null}
     </main>
   );
 }
