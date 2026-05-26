@@ -5,6 +5,7 @@
 // mentally, and act.
 
 import type {
+  CommunitySignal,
   MatchPlan,
   PlayStyle,
   SwapCandidate,
@@ -324,6 +325,10 @@ function SwapSuggestionRow({ swap }: { swap: SwapSuggestion }) {
         {swap.reason}
       </p>
 
+      {swap.communitySignal ? (
+        <CommunitySignalBadge signal={swap.communitySignal} />
+      ) : null}
+
       {swap.candidates && swap.candidates.length > 0 ? (
         <div className="mt-3 grid gap-1.5">
           {swap.candidates.slice(0, 5).map((c) => (
@@ -333,6 +338,54 @@ function SwapSuggestionRow({ swap }: { swap: SwapSuggestion }) {
       ) : swap.candidates ? (
         <p className="mt-3 rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2 text-[11px] text-valmuted">
           No DB matches yet — populate the player DB to see concrete options.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function CommunitySignalBadge({ signal }: { signal: CommunitySignal }) {
+  const total = signal.positiveCount + signal.negativeCount;
+  const tone =
+    signal.bucket === "positive"
+      ? {
+          border: "border-valaccent/25",
+          bg: "bg-valaccent/[0.06]",
+          text: "text-valaccent",
+          dot: "bg-valaccent",
+          label: "Community: positive",
+        }
+      : signal.bucket === "negative"
+        ? {
+            border: "border-rose-400/25",
+            bg: "bg-rose-400/[0.06]",
+            text: "text-rose-300",
+            dot: "bg-rose-400",
+            label: "Community: negative",
+          }
+        : {
+            border: "border-amber-300/25",
+            bg: "bg-amber-300/[0.06]",
+            text: "text-amber-200",
+            dot: "bg-amber-300",
+            label: "Community: mixed",
+          };
+
+  return (
+    <div className={`mt-3 rounded-xl border ${tone.border} ${tone.bg} px-3 py-2`}>
+      <div className="flex items-center gap-2 text-[11px] font-medium">
+        <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+        <span className={tone.text}>{tone.label}</span>
+        <span className="text-valmuted tabular-nums">
+          · {signal.positiveCount}↑ {signal.negativeCount}↓ ({total})
+        </span>
+      </div>
+      <div className="mt-1 text-[10px] uppercase tracking-wider text-valmuted">
+        matched: {signal.matchedTerm}
+      </div>
+      {signal.topQuote ? (
+        <p className="mt-1.5 text-xs leading-relaxed text-valtext/80 italic">
+          &ldquo;{signal.topQuote}&rdquo;
         </p>
       ) : null}
     </div>

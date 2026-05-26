@@ -26,6 +26,7 @@ import type {
 } from "@/lib/ai/matchPlanSchema";
 import { searchByProfile } from "@/lib/playerDb/queries";
 import type { FcPlayer, FcPlayerPosition } from "@/lib/playerDb/types";
+import { lookupProfileSignal } from "@/lib/community/lookup";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -73,9 +74,11 @@ function toSwapCandidate(p: FcPlayer): SwapCandidate {
   return c;
 }
 
-/** For each AI-suggested swap, query the player DB and attach concrete
- *  candidates. Failures are logged and the suggestion is returned without
- *  candidates — the plan is still useful without DB enrichment. */
+/** For each AI-suggested swap, attach two enrichments in parallel:
+ *    - candidates: concrete players from fc_players matching the filters
+ *    - communitySignal: aggregated Reddit / Twitter sentiment for the profile
+ *  Both lookups fail soft. A plan is still useful without either, so the
+ *  swap is returned with empty / undefined fields and the caller logs. */
 async function enrichSwapSuggestions(
   suggestions: SwapSuggestion[] | undefined
 ): Promise<SwapSuggestion[]> {
@@ -83,8 +86,9 @@ async function enrichSwapSuggestions(
 
   const tasks = suggestions.map(async (s): Promise<SwapSuggestion> => {
     const position = toFcPosition(s.position);
-    try {
-      const players = await searchByProfile({
+
+    const [candidatesResult, signalResult] = await Promise.allSettled([
+      searchByProfile({
         position,
         minOverall: s.filters?.minOverall,
         minPace: s.filters?.minPace,
@@ -95,12 +99,37 @@ async function enrichSwapSuggestions(
         minPhysical: s.filters?.minPhysical,
         anyPlaystyles: s.filters?.anyPlaystyles,
         limit: 5,
-      });
-      return { ...s, candidates: players.map(toSwapCandidate) };
-    } catch (err) {
-      console.error("swap suggestion DB lookup failed", err);
-      return { ...s, candidates: [] };
+      }),
+      lookupProfileSignal(s.profile, "player_profile"),
+    ]);
+
+    let candidates: SwapCandidate[] = [];
+    if (candidatesResult.status === "fulfilled") {
+      candidates = candidatesResult.value.map(toSwapCandidate);
+    } else {
+      console.error("swap suggestion DB lookup failed", candidatesResult.reason);
     }
+
+    const enriched: SwapSuggestion = { ...s, candidates };
+
+    if (signalResult.status === "fulfilled" && signalResult.value) {
+      // lookupProfileSignal returns a `similarity` field we don't surface.
+      const sig = signalResult.value;
+      enriched.communitySignal = {
+        positiveCount: sig.positiveCount,
+        negativeCount: sig.negativeCount,
+        bucket: sig.bucket,
+        topQuote: sig.topQuote,
+        matchedTerm: sig.matchedTerm,
+      };
+    } else if (signalResult.status === "rejected") {
+      console.error(
+        "swap suggestion community signal lookup failed",
+        signalResult.reason
+      );
+    }
+
+    return enriched;
   });
 
   return Promise.all(tasks);

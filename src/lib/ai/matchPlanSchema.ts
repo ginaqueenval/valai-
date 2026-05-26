@@ -95,6 +95,11 @@ export type SwapSuggestion = {
   reason: string;
   /** Filled in server-side from the player DB. Empty array if no matches. */
   candidates?: SwapCandidate[];
+  /** Filled in server-side from the community signal pipeline. Reflects what
+   *  Reddit / Twitter discussions say about profiles matching this swap.
+   *  Undefined when the pipeline has no aggregate above the minimum
+   *  mention threshold. */
+  communitySignal?: CommunitySignal;
 };
 
 // ---------- Match Plan ----------

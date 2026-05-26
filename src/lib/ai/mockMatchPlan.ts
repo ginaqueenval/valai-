@@ -118,6 +118,14 @@ export const mockMatchPlan: MatchPlan = {
       },
       reason:
         "Replacing your slowest CB unlocks a higher defensive line and reduces vulnerability to balls over the top.",
+      communitySignal: {
+        positiveCount: 42,
+        negativeCount: 7,
+        bucket: "positive",
+        topQuote:
+          "Honestly the difference a fast CB makes against pacey strikers in Div 2-3 is night and day.",
+        matchedTerm: "fast cb with aerial",
+      },
     },
     {
       targetPlayer: "Pavard",
