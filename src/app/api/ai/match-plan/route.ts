@@ -21,7 +21,11 @@ import type {
   MatchPlan,
   MatchPlanRequest,
   Squad,
+  SwapCandidate,
+  SwapSuggestion,
 } from "@/lib/ai/matchPlanSchema";
+import { searchByProfile } from "@/lib/playerDb/queries";
+import type { FcPlayer, FcPlayerPosition } from "@/lib/playerDb/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,6 +37,73 @@ function validateSquad(squad: unknown): squad is Squad {
   if (!Array.isArray(s.players)) return false;
   if (s.players.length < 11) return false;
   return true;
+}
+
+const KNOWN_POSITIONS = new Set<FcPlayerPosition>([
+  "GK",
+  "RB", "LB", "CB",
+  "CDM", "CM", "CAM",
+  "RM", "LM",
+  "RW", "LW",
+  "CF", "ST",
+]);
+
+function toFcPosition(label: string): FcPlayerPosition | undefined {
+  const upper = label.toUpperCase();
+  return KNOWN_POSITIONS.has(upper as FcPlayerPosition)
+    ? (upper as FcPlayerPosition)
+    : undefined;
+}
+
+function toSwapCandidate(p: FcPlayer): SwapCandidate {
+  const c: SwapCandidate = {
+    externalId: p.externalId,
+    name: p.name,
+    position: p.position,
+    overall: p.overall,
+    pace: p.pace,
+    shooting: p.shooting,
+    passing: p.passing,
+    dribbling: p.dribbling,
+    defending: p.defending,
+    physical: p.physical,
+    playstyles: p.playstyles,
+  };
+  if (p.imageUrl) c.imageUrl = p.imageUrl;
+  return c;
+}
+
+/** For each AI-suggested swap, query the player DB and attach concrete
+ *  candidates. Failures are logged and the suggestion is returned without
+ *  candidates — the plan is still useful without DB enrichment. */
+async function enrichSwapSuggestions(
+  suggestions: SwapSuggestion[] | undefined
+): Promise<SwapSuggestion[]> {
+  if (!suggestions || suggestions.length === 0) return [];
+
+  const tasks = suggestions.map(async (s): Promise<SwapSuggestion> => {
+    const position = toFcPosition(s.position);
+    try {
+      const players = await searchByProfile({
+        position,
+        minOverall: s.filters?.minOverall,
+        minPace: s.filters?.minPace,
+        minShooting: s.filters?.minShooting,
+        minPassing: s.filters?.minPassing,
+        minDribbling: s.filters?.minDribbling,
+        minDefending: s.filters?.minDefending,
+        minPhysical: s.filters?.minPhysical,
+        anyPlaystyles: s.filters?.anyPlaystyles,
+        limit: 5,
+      });
+      return { ...s, candidates: players.map(toSwapCandidate) };
+    } catch (err) {
+      console.error("swap suggestion DB lookup failed", err);
+      return { ...s, candidates: [] };
+    }
+  });
+
+  return Promise.all(tasks);
 }
 
 export async function POST(request: Request) {
@@ -111,6 +182,11 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
+
+    // Enrich AI's swap suggestions with concrete candidates from fc_players.
+    // If the table is empty or queries fail, suggestions return without
+    // candidates — the plan is still useful.
+    plan.swapSuggestions = await enrichSwapSuggestions(plan.swapSuggestions);
 
     return NextResponse.json({
       success: true,

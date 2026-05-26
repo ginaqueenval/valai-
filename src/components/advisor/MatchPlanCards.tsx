@@ -4,7 +4,12 @@
 // Each card holds one section of the plan so the user can skim, expand
 // mentally, and act.
 
-import type { MatchPlan, PlayStyle } from "@/lib/ai/matchPlanSchema";
+import type {
+  MatchPlan,
+  PlayStyle,
+  SwapCandidate,
+  SwapSuggestion,
+} from "@/lib/ai/matchPlanSchema";
 
 type Props = {
   plan: MatchPlan;
@@ -242,6 +247,21 @@ export function MatchPlanCards({ plan, onPivot, isPivoting }: Props) {
     </SectionCard>
   ) : null;
 
+  const hasSwaps = plan.swapSuggestions && plan.swapSuggestions.length > 0;
+  const swapsCard = hasSwaps ? (
+    <SectionCard
+      eyebrow={`Swap suggestions · ${plan.swapSuggestions!.length}`}
+    >
+      <ul className="divide-y divide-white/[0.06]">
+        {plan.swapSuggestions!.map((swap, idx) => (
+          <li key={idx} className="py-4 first:pt-0 last:pb-0">
+            <SwapSuggestionRow swap={swap} />
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
+  ) : null;
+
   const pivotCard = onPivot ? (
     <div className="rounded-3xl border border-white/[0.06] bg-valelev p-5">
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-valmuted">
@@ -280,7 +300,62 @@ export function MatchPlanCards({ plan, onPivot, isPivoting }: Props) {
       {planBCard}
       {alternativeCard}
       {matchupCard}
+      {swapsCard}
       {pivotCard}
+    </div>
+  );
+}
+
+function SwapSuggestionRow({ swap }: { swap: SwapSuggestion }) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="text-sm font-semibold text-valtext">
+          Replace {swap.targetPlayer}
+        </div>
+        <span className="text-[10px] font-medium uppercase tracking-wider text-valmuted">
+          {swap.position}
+        </span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-valmuted">
+        {swap.profile}
+      </p>
+      <p className="mt-1.5 text-xs leading-relaxed text-valtext/80">
+        {swap.reason}
+      </p>
+
+      {swap.candidates && swap.candidates.length > 0 ? (
+        <div className="mt-3 grid gap-1.5">
+          {swap.candidates.slice(0, 5).map((c) => (
+            <SwapCandidatePill key={c.externalId} candidate={c} />
+          ))}
+        </div>
+      ) : swap.candidates ? (
+        <p className="mt-3 rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2 text-[11px] text-valmuted">
+          No DB matches yet — populate the player DB to see concrete options.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function SwapCandidatePill({ candidate }: { candidate: SwapCandidate }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-valcard px-3 py-2">
+      <div className="text-sm font-semibold tabular-nums text-valaccent w-7 text-center">
+        {candidate.overall}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-valtext truncate">
+          {candidate.name}
+        </div>
+        <div className="text-[10px] text-valmuted tabular-nums">
+          PAC {candidate.pace} · SHO {candidate.shooting} · PAS {candidate.passing} · DRI {candidate.dribbling} · DEF {candidate.defending} · PHY {candidate.physical}
+        </div>
+      </div>
+      <span className="text-[10px] font-medium uppercase tracking-wider text-valmuted">
+        {candidate.position}
+      </span>
     </div>
   );
 }

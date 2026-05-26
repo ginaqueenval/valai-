@@ -49,6 +49,54 @@ export type SquadDraft = Squad & {
   notes?: string;
 };
 
+// ---------- Swap suggestions ----------
+
+/** Structured filter hints the AI emits alongside a profile string. The server
+ *  uses these to query the FC player database for concrete candidates. */
+export type SwapSuggestionFilters = {
+  minOverall?: number;
+  minPace?: number;
+  minShooting?: number;
+  minPassing?: number;
+  minDribbling?: number;
+  minDefending?: number;
+  minPhysical?: number;
+  /** PlayStyle names like "Quick Step", "Power Shot". DB matches any of them. */
+  anyPlaystyles?: string[];
+};
+
+/** Player from the FC player database, surfaced as a concrete swap candidate.
+ *  This is a slim version of FcPlayer — only the fields the UI shows. */
+export type SwapCandidate = {
+  externalId: string;
+  name: string;
+  position: string;
+  overall: number;
+  pace: number;
+  shooting: number;
+  passing: number;
+  dribbling: number;
+  defending: number;
+  physical: number;
+  playstyles: string[];
+  imageUrl?: string;
+};
+
+export type SwapSuggestion = {
+  /** Name of the squad player to consider replacing. */
+  targetPlayer: string;
+  /** Position label (e.g. "RB", "CB"). */
+  position: string;
+  /** Human-readable profile description. */
+  profile: string;
+  /** Structured filter hints for the DB lookup. */
+  filters: SwapSuggestionFilters;
+  /** Why this swap improves the plan. */
+  reason: string;
+  /** Filled in server-side from the player DB. Empty array if no matches. */
+  candidates?: SwapCandidate[];
+};
+
 // ---------- Match Plan ----------
 
 export type PlayStyle =
@@ -131,6 +179,11 @@ export type MatchPlan = {
 
   /** Optional: extra tips for specific matchup styles the user might face. */
   matchupHints?: string;
+
+  /** Optional: AI-suggested squad changes. Empty / omitted when the squad
+   *  doesn't have a clear weak link worth replacing. Server enriches each
+   *  entry with concrete candidates from the player DB. */
+  swapSuggestions?: SwapSuggestion[];
 };
 
 // ---------- Chat ----------

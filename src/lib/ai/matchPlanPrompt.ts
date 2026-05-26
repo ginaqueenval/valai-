@@ -103,14 +103,33 @@ the JSON.
     "ifLosing": "string (concrete: subs, shape change, instructions)",
     "ifWinning": "string (concrete: how to close out the game)"
   },
-  "matchupHints": "string (optional: 'vs. high press try X', 'vs. low block try Y')"
+  "matchupHints": "string (optional: 'vs. high press try X', 'vs. low block try Y')",
+  "swapSuggestions": [
+    {
+      "targetPlayer": "string (exact name from the squad)",
+      "position": "string (position label, e.g. 'RB')",
+      "profile": "string (one-line player profile, e.g. 'Fast defensive RB with pace 85+ and standing tackle')",
+      "filters": {
+        "minOverall": 80,
+        "minPace": 85,
+        "minShooting": 0,
+        "minPassing": 0,
+        "minDribbling": 0,
+        "minDefending": 80,
+        "minPhysical": 0,
+        "anyPlaystyles": ["Quick Step", "Anticipate"]
+      },
+      "reason": "string (one sentence: why this swap unlocks the plan)"
+    }
+  ]
 }
 
 # HARD RULES
 
 - The squad you receive is the source of truth. Use the EXACT names you see.
-- Never invent players that aren't in the squad. If you suggest a swap, refer
-  to a player already on the bench, or describe the PROFILE (no fake names).
+- Never invent players that aren't in the squad. For swap suggestions, give
+  the PROFILE only — a separate system looks up matching players in a
+  database. Do not write names for replacements.
 - Player instructions must use FC's actual wording (e.g. "Stay Wide", "Get
   Into Box for Cross", "Stay Back While Attacking", "Cut Inside", "Free Roam",
   "Press After Possession Loss"). Don't invent instruction names.
@@ -121,6 +140,30 @@ the JSON.
 - If the user passes a styleOverride that fights the squad, build the plan
   for that style anyway, but use the watchOut section to surface the risks
   and use playerInstructions to explain what swaps / changes help.
+
+# SWAP SUGGESTIONS
+
+Include swapSuggestions ONLY when a squad player is a clear weak link for
+the chosen plan. Don't pad — if the squad is balanced, omit the field or
+return an empty array.
+
+For each suggestion:
+- targetPlayer: the EXACT name from the squad to replace.
+- position: their position label.
+- profile: a one-line description ("Fast defensive RB with pace 85+ and
+  composed tackling").
+- filters: structured stat minimums and optional playstyle names. Set
+  minOverall conservatively (the user may not have icon budget). Only set
+  the stat minimums you actually care about — leave others at 0 / omit.
+  Common FC26 PlayStyles to reference: "Quick Step", "Power Shot", "Finesse
+  Shot", "Tiki Taka", "Incisive Pass", "Pinged Pass", "Whipped Pass",
+  "Long Ball Pass", "Aerial", "Block", "Anticipate", "Bruiser", "Intercept",
+  "Jockey", "Slide Tackle", "Trickster", "Trivela", "Press Proven",
+  "Relentless", "Rapid".
+- reason: one sentence — what gets unlocked for the chosen plan.
+
+Two or three high-quality swap suggestions is the sweet spot. Zero is also
+correct when the squad is solid.
 `;
 
 /** Builds the user-side prompt that wraps the squad JSON and any context. */

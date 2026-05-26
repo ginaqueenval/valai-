@@ -104,4 +104,33 @@ export const mockMatchPlan: MatchPlan = {
   },
   matchupHints:
     "vs. high press: short-pass exit via Kimmich. vs. low block: trust the wide overloads — don't force central passes.",
+  swapSuggestions: [
+    {
+      targetPlayer: "Upamecano",
+      position: "CB",
+      profile: "Fast CB (pace 80+) with solid defending and aerial presence",
+      filters: {
+        minOverall: 84,
+        minPace: 80,
+        minDefending: 82,
+        minPhysical: 80,
+        anyPlaystyles: ["Anticipate", "Block", "Aerial"],
+      },
+      reason:
+        "Replacing your slowest CB unlocks a higher defensive line and reduces vulnerability to balls over the top.",
+    },
+    {
+      targetPlayer: "Pavard",
+      position: "RB",
+      profile: "Two-way RB with pace 85+ and crossing",
+      filters: {
+        minOverall: 83,
+        minPace: 85,
+        minDefending: 80,
+        anyPlaystyles: ["Quick Step", "Whipped Pass"],
+      },
+      reason:
+        "Adds a real wide-attack threat on the right to mirror Davies on the left.",
+    },
+  ],
 };
