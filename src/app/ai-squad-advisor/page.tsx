@@ -3,21 +3,21 @@
 import { useState, type ChangeEvent } from "react";
 import type {
   ChatMessage,
-  DivisionLevel,
-  Goal,
-  Platform,
+  PlayerCallout,
   ValbriSquadAdvisorResult,
 } from "@/lib/ai/valbriSquadAdvisorSchema";
-import { StatusPill } from "@/components/ui/StatusPill";
-import { DashboardTitle } from "@/components/advisor/DashboardTitle";
 import { DashboardBento } from "@/components/advisor/DashboardBento";
 import { ChatLog } from "@/components/advisor/ChatLog";
 import { ChatComposer } from "@/components/advisor/ChatComposer";
 import { BottomBar } from "@/components/layout/BottomBar";
 import { Spinner } from "@/components/ui/Spinner";
+import { calloutId } from "@/components/advisor/SquadPreview";
+
+const DEFAULT_PLATFORM = "PlayStation" as const;
+const DEFAULT_DIVISION = "Division 7-5" as const;
+const DEFAULT_GOAL = "Best Overall Improvement" as const;
 
 export default function AiSquadAdvisorPage() {
-  // ── Analysis state ─────────────────────────────────────────────
   const [result, setResult] = useState<ValbriSquadAdvisorResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -26,14 +26,8 @@ export default function AiSquadAdvisorPage() {
   const [selectedImageName, setSelectedImageName] = useState("");
   const [imagePreviewUrl, setImagePreviewUrl] = useState("");
 
-  const [platform, setPlatform] = useState<Platform>("PlayStation");
-  const [divisionLevel, setDivisionLevel] = useState<DivisionLevel>("Division 7-5");
-  const [goal, setGoal] = useState<Goal>("Best Overall Improvement");
-  const [currentTactics, setCurrentTactics] = useState("");
-
   const [selectedCalloutId, setSelectedCalloutId] = useState<string | null>(null);
 
-  // ── Chat state (hoisted from former ChatPanel) ─────────────────
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -48,6 +42,16 @@ export default function AiSquadAdvisorPage() {
     setErrorMessage("");
   }
 
+  function handleCalloutSelect(id: string | null) {
+    setSelectedCalloutId(id);
+    if (!id || !result) return;
+    const found = result.playerCallouts.find(
+      (c: PlayerCallout, i: number) => calloutId(c, i) === id
+    );
+    if (!found) return;
+    setChatInput(`Tell me more about ${found.label} (${found.position}).`);
+  }
+
   async function handleAnalyzeClick() {
     try {
       setIsLoading(true);
@@ -59,10 +63,10 @@ export default function AiSquadAdvisorPage() {
 
       const formData = new FormData();
       formData.append("squadImage", selectedImageFile);
-      formData.append("platform", platform);
-      formData.append("divisionLevel", divisionLevel);
-      formData.append("goal", goal);
-      formData.append("currentTactics", currentTactics);
+      formData.append("platform", DEFAULT_PLATFORM);
+      formData.append("divisionLevel", DEFAULT_DIVISION);
+      formData.append("goal", DEFAULT_GOAL);
+      formData.append("currentTactics", "");
 
       const response = await fetch("/api/ai/squad-analysis", {
         method: "POST",
@@ -109,10 +113,10 @@ export default function AiSquadAdvisorPage() {
         body: JSON.stringify({
           messages: nextMessages,
           analysis: result,
-          platform,
-          divisionLevel,
-          goal,
-          currentTactics,
+          platform: DEFAULT_PLATFORM,
+          divisionLevel: DEFAULT_DIVISION,
+          goal: DEFAULT_GOAL,
+          currentTactics: "",
         }),
       });
       const data = await response.json().catch(() => null);
@@ -134,21 +138,7 @@ export default function AiSquadAdvisorPage() {
 
   return (
     <>
-      <main className="mx-auto max-w-2xl px-4 pt-6 pb-[180px]">
-        <DashboardTitle
-          eyebrow="AI Squad Advisor"
-          title="Squad Advisor"
-          status={
-            result ? (
-              <StatusPill>Analysis ready</StatusPill>
-            ) : isLoading ? (
-              <StatusPill dot>Analyzing…</StatusPill>
-            ) : (
-              <StatusPill dot>Standing by</StatusPill>
-            )
-          }
-        />
-
+      <main className="mx-auto max-w-2xl px-4 pt-8 pb-[140px]">
         {errorMessage ? (
           <div className="mb-3 rounded-2xl border border-[#FF5C7A]/30 bg-[#FF5C7A]/10 px-4 py-3 text-sm text-[#FF5C7A]">
             {errorMessage}
@@ -160,21 +150,13 @@ export default function AiSquadAdvisorPage() {
           imagePreviewUrl={imagePreviewUrl}
           selectedImageName={selectedImageName}
           onImageChange={handleImageChange}
-          platform={platform}
-          setPlatform={setPlatform}
-          divisionLevel={divisionLevel}
-          setDivisionLevel={setDivisionLevel}
-          goal={goal}
-          setGoal={setGoal}
-          currentTactics={currentTactics}
-          setCurrentTactics={setCurrentTactics}
-          isLoading={isLoading}
-          onRun={handleAnalyzeClick}
           selectedCalloutId={selectedCalloutId}
-          setSelectedCalloutId={setSelectedCalloutId}
+          setSelectedCalloutId={handleCalloutSelect}
         />
 
-        <ChatLog messages={messages} isSending={isSending} error={chatError} />
+        {result ? (
+          <ChatLog messages={messages} isSending={isSending} error={chatError} />
+        ) : null}
       </main>
 
       <BottomBar>
@@ -185,13 +167,13 @@ export default function AiSquadAdvisorPage() {
             onSubmit={() => sendMessage(chatInput)}
             isSending={isSending}
           />
-        ) : (
+        ) : imagePreviewUrl ? (
           <button
             type="button"
             onClick={handleAnalyzeClick}
-            disabled={!imagePreviewUrl || isLoading}
+            disabled={isLoading}
             className={`w-full rounded-full px-6 py-3.5 text-base font-semibold transition-all ${
-              !imagePreviewUrl || isLoading
+              isLoading
                 ? "bg-white/10 text-valmuted cursor-not-allowed"
                 : "bg-valaccent text-valbg shadow-cta-hover hover:bg-valhover"
             } flex items-center justify-center gap-2`}
@@ -204,7 +186,7 @@ export default function AiSquadAdvisorPage() {
               "Run Analysis"
             )}
           </button>
-        )}
+        ) : null}
       </BottomBar>
     </>
   );
