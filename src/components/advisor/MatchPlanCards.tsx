@@ -1,0 +1,240 @@
+// src/components/advisor/MatchPlanCards.tsx
+//
+// Renders a MatchPlan as a stack of focused cards inside an AI message.
+// Each card holds one section of the plan so the user can skim, expand
+// mentally, and act.
+
+import type { MatchPlan, PlayStyle } from "@/lib/ai/matchPlanSchema";
+
+type Props = { plan: MatchPlan };
+
+const STYLE_LABEL: Record<PlayStyle, string> = {
+  possession: "Possession",
+  "counter-attack": "Counter-attack",
+  "high-press": "High press",
+  "tiki-taka": "Tiki-taka",
+  "wing-play": "Wing play",
+  "long-ball": "Long ball",
+  balanced: "Balanced",
+  "park-the-bus": "Park the bus",
+  gegenpress: "Gegenpress",
+};
+
+function styleLabel(style: string): string {
+  if (style in STYLE_LABEL) return STYLE_LABEL[style as PlayStyle];
+  return style;
+}
+
+function SectionCard({
+  eyebrow,
+  children,
+}: {
+  eyebrow: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-3xl border border-white/[0.06] bg-valelev p-5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-valmuted">
+        {eyebrow}
+      </div>
+      <div className="mt-3 text-sm text-valtext leading-relaxed">{children}</div>
+    </div>
+  );
+}
+
+function Slider({ label, value }: { label: string; value: number }) {
+  const pct = Math.max(0, Math.min(100, (value / 10) * 100));
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs text-valmuted">{label}</span>
+        <span className="text-xs font-semibold text-valtext tabular-nums">
+          {value}/10
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+        <div
+          className="h-full rounded-full bg-valaccent transition-[width]"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function MatchPlanCards({ plan }: Props) {
+  const tactics = plan.customTactics ?? {};
+
+  // Headline + reasoning + chosen style live on one hero card.
+  const hero = (
+    <div className="rounded-3xl border border-valaccent/30 bg-gradient-to-br from-valaccent/[0.08] to-transparent p-5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-valaccent">
+        Match plan · {styleLabel(plan.styleOfPlay)}
+      </div>
+      <h3 className="mt-3 text-xl font-semibold tracking-tight text-valtext">
+        {plan.headline}
+      </h3>
+      <p className="mt-2 text-sm leading-relaxed text-valmuted">
+        {plan.reasoning}
+      </p>
+    </div>
+  );
+
+  const formationCard = (
+    <SectionCard eyebrow="Formation">
+      <div className="text-2xl font-semibold tabular-nums text-valtext">
+        {plan.formation.shape}
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-valmuted">
+        {plan.formation.note}
+      </p>
+    </SectionCard>
+  );
+
+  const hasSliders =
+    typeof tactics.defensiveWidth === "number" ||
+    typeof tactics.defensiveDepth === "number" ||
+    typeof tactics.offensiveWidth === "number" ||
+    typeof tactics.playersInBox === "number" ||
+    typeof tactics.corners === "number" ||
+    typeof tactics.freeKicks === "number";
+
+  const tacticsCard = (
+    <SectionCard eyebrow="Custom tactics">
+      {tactics.defensiveStyle || tactics.offensiveStyle ? (
+        <dl className="grid grid-cols-2 gap-3 text-sm">
+          {tactics.defensiveStyle ? (
+            <div>
+              <dt className="text-xs text-valmuted">Defensive style</dt>
+              <dd className="text-valtext font-medium">{tactics.defensiveStyle}</dd>
+            </div>
+          ) : null}
+          {tactics.offensiveStyle ? (
+            <div>
+              <dt className="text-xs text-valmuted">Offensive style</dt>
+              <dd className="text-valtext font-medium">{tactics.offensiveStyle}</dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : null}
+      {hasSliders ? (
+        <div className="mt-4 grid gap-3">
+          {typeof tactics.defensiveWidth === "number" ? (
+            <Slider label="Defensive width" value={tactics.defensiveWidth} />
+          ) : null}
+          {typeof tactics.defensiveDepth === "number" ? (
+            <Slider label="Defensive depth" value={tactics.defensiveDepth} />
+          ) : null}
+          {typeof tactics.offensiveWidth === "number" ? (
+            <Slider label="Attacking width" value={tactics.offensiveWidth} />
+          ) : null}
+          {typeof tactics.playersInBox === "number" ? (
+            <Slider label="Players in box" value={tactics.playersInBox} />
+          ) : null}
+          {typeof tactics.corners === "number" ? (
+            <Slider label="Corners" value={tactics.corners} />
+          ) : null}
+          {typeof tactics.freeKicks === "number" ? (
+            <Slider label="Free kicks" value={tactics.freeKicks} />
+          ) : null}
+        </div>
+      ) : null}
+    </SectionCard>
+  );
+
+  const instructionsCard = plan.playerInstructions.length > 0 ? (
+    <SectionCard eyebrow={`Player instructions · ${plan.playerInstructions.length}`}>
+      <ul className="divide-y divide-white/[0.06]">
+        {plan.playerInstructions.map((pi, idx) => (
+          <li key={idx} className="py-3 first:pt-0 last:pb-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-sm font-semibold text-valtext">
+                {pi.target}
+              </span>
+              {pi.position ? (
+                <span className="text-[10px] font-medium uppercase tracking-wider text-valmuted">
+                  {pi.position}
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {pi.instructions.map((ins, i) => (
+                <span
+                  key={i}
+                  className="rounded-full border border-valaccent/25 bg-valaccent/[0.06] px-2.5 py-0.5 text-xs font-medium text-valaccent"
+                >
+                  {ins}
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-valmuted">
+              {pi.rationale}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
+  ) : null;
+
+  const watchOutCard = plan.watchOut.length > 0 ? (
+    <SectionCard eyebrow="Watch out">
+      <ul className="divide-y divide-white/[0.06]">
+        {plan.watchOut.map((w, idx) => (
+          <li key={idx} className="py-3 first:pt-0 last:pb-0">
+            <div className="text-sm font-semibold text-valtext">{w.area}</div>
+            <p className="mt-1 text-xs leading-relaxed text-valmuted">{w.risk}</p>
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
+  ) : null;
+
+  const planBCard = (
+    <SectionCard eyebrow="Plan B">
+      <div className="grid gap-3">
+        <div>
+          <div className="text-xs font-semibold text-valtext">If losing</div>
+          <p className="mt-1 text-xs leading-relaxed text-valmuted">
+            {plan.planB.ifLosing}
+          </p>
+        </div>
+        <div>
+          <div className="text-xs font-semibold text-valtext">If winning</div>
+          <p className="mt-1 text-xs leading-relaxed text-valmuted">
+            {plan.planB.ifWinning}
+          </p>
+        </div>
+      </div>
+    </SectionCard>
+  );
+
+  const alternativeCard = plan.alternativeStyle ? (
+    <SectionCard eyebrow="Backup style">
+      <div className="text-sm font-semibold text-valtext">
+        {styleLabel(plan.alternativeStyle.style)}
+      </div>
+      <p className="mt-1.5 text-xs leading-relaxed text-valmuted">
+        {plan.alternativeStyle.reasoning}
+      </p>
+    </SectionCard>
+  ) : null;
+
+  const matchupCard = plan.matchupHints ? (
+    <SectionCard eyebrow="Matchup hints">
+      <p className="text-xs leading-relaxed text-valmuted">{plan.matchupHints}</p>
+    </SectionCard>
+  ) : null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {hero}
+      {formationCard}
+      {tacticsCard}
+      {instructionsCard}
+      {watchOutCard}
+      {planBCard}
+      {alternativeCard}
+      {matchupCard}
+    </div>
+  );
+}
