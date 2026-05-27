@@ -206,6 +206,20 @@ export type SquadExtractResponse =
   | { success: true; modelUsed: string; draft: SquadDraft }
   | { success: false; error: string };
 
+/** Output language for AI-generated copy in the Match Plan (and follow-up
+ *  chat). Defaults to English on the server when omitted. FC instruction
+ *  names ("Stay Wide", etc.) stay in English regardless — those are how the
+ *  in-game menu spells them. */
+export type OutputLanguage =
+  | "en"
+  | "fa"
+  | "ar"
+  | "es"
+  | "de"
+  | "fr"
+  | "tr"
+  | "pt";
+
 export type MatchPlanRequest = {
   squad: Squad;
   /** Optional opponent squad. When provided, the AI builds a counter-tactical
@@ -219,6 +233,8 @@ export type MatchPlanRequest = {
   userContext?: string;
   /** If the user is requesting a specific style override. */
   styleOverride?: PlayStyle;
+  /** Language the AI should answer in. Defaults to "en". */
+  language?: OutputLanguage;
 };
 
 export type MatchPlanResponse =

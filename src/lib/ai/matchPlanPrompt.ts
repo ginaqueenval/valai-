@@ -166,6 +166,17 @@ Two or three high-quality swap suggestions is the sweet spot. Zero is also
 correct when the squad is solid.
 `;
 
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: "English",
+  fa: "Persian (فارسی)",
+  ar: "Arabic (العربية)",
+  es: "Spanish (Español)",
+  de: "German (Deutsch)",
+  fr: "French (Français)",
+  tr: "Turkish (Türkçe)",
+  pt: "Portuguese (Português)",
+};
+
 /** Builds the user-side prompt that wraps the squad JSON and any context. */
 export function buildMatchPlanUserText(args: {
   squadJson: string;
@@ -175,8 +186,28 @@ export function buildMatchPlanUserText(args: {
   platform?: string;
   userContext?: string;
   styleOverride?: string;
+  /** ISO-style code from OutputLanguage. Optional; English is the default. */
+  language?: string;
 }): string {
   const lines: string[] = [];
+
+  const language = args.language ?? "en";
+  if (language !== "en") {
+    const name = LANGUAGE_NAMES[language] ?? language;
+    lines.push(
+      `OUTPUT LANGUAGE: Write all human-readable string fields (headline, ` +
+        `reasoning, formation.note, customTactics.defensiveStyle, ` +
+        `customTactics.offensiveStyle, playerInstructions[].rationale, ` +
+        `watchOut[].area, watchOut[].risk, planB.ifLosing, planB.ifWinning, ` +
+        `alternativeStyle.reasoning, matchupHints, swapSuggestions[].profile, ` +
+        `swapSuggestions[].reason) in ${name}. Keep FC instruction names ` +
+        `("Stay Wide", "Get Into Box for Cross", etc.) and FC PlayStyle names ` +
+        `("Quick Step", "Power Shot", etc.) in English — those are the exact ` +
+        `strings the in-game menu uses. Keep enum values (styleOfPlay, ` +
+        `position labels) in English too.`
+    );
+    lines.push("");
+  }
 
   if (args.platform) lines.push(`Platform: ${args.platform}`);
   if (args.userContext && args.userContext.trim().length > 0) {

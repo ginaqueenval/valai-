@@ -18,11 +18,14 @@ import {
 import { DualUploadCard } from "@/components/advisor/DualUploadCard";
 import type {
   MatchPlan,
+  OutputLanguage,
   PlayStyle,
   Squad,
   SquadDraft,
 } from "@/lib/ai/matchPlanSchema";
 import { clearSession, loadSession, saveSession } from "@/lib/storage/session";
+
+const LANGUAGE_STORAGE_KEY = "valai:language:v1";
 
 type Phase =
   | { type: "idle" }
@@ -68,12 +71,34 @@ export default function AiSquadAdvisorPage() {
   const [pendingUserContext, setPendingUserContext] = useState("");
   const [hydrated, setHydrated] = useState(false);
 
+  // AI output language. Persisted across reloads via localStorage so users
+  // don't have to re-pick it every visit.
+  const [language, setLanguage] = useState<OutputLanguage>("en");
+
+  function handleLanguageChange(next: OutputLanguage) {
+    setLanguage(next);
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, next);
+    } catch {
+      // ignore quota / private mode
+    }
+  }
+
   const scrollEndRef = useRef<HTMLDivElement | null>(null);
 
   // Hydrate from localStorage on mount. We restore squad + plan + context as
   // a "resumed session" message so the user understands they're picking up
   // where they left off, not starting fresh.
   useEffect(() => {
+    // Language preference is stored independently of the session so a user
+    // who resets still keeps their preferred language.
+    try {
+      const storedLang = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (storedLang) setLanguage(storedLang as OutputLanguage);
+    } catch {
+      // ignore
+    }
+
     const stored = loadSession();
     setHydrated(true);
     if (!stored) return;
@@ -162,26 +187,47 @@ export default function AiSquadAdvisorPage() {
     return data.draft as SquadDraft;
   }
 
-  /** Pull the self image (required) and opponent image (optional) through
-   *  vision extraction in parallel. The self draft gets confirmed by the
-   *  user; the opponent is parsed silently and threaded into the plan call.
-   *  Opponent extraction failing is non-fatal — we fall back to the
-   *  single-squad path. */
+  /** Pulls the self image (required) through vision extraction first, then
+   *  the opponent (optional). Running these sequentially — not in parallel —
+   *  guarantees the user always sees THEIR draft in the confirmation editor.
+   *  An earlier parallel version was reported as confusing because the second
+   *  loading bubble made it ambiguous which lineup the editor belonged to.
+   *  Opponent extraction failing is non-fatal: we fall back to the
+   *  single-squad path with a notice in the stream. */
   async function extractAndConfirm(self: File, opponent: File | null) {
+    // Sanity-check: if the user accidentally attached the same file in both
+    // slots (e.g. picked the wrong file second), treat the opponent slot as
+    // empty rather than analyzing the same squad twice.
+    const sameFile =
+      opponent !== null &&
+      opponent.name === self.name &&
+      opponent.size === self.size &&
+      opponent.lastModified === self.lastModified;
+    const effectiveOpponent = sameFile ? null : opponent;
+
     // Drop the user-uploaded images into the stream as visible messages so
-    // the user has a record of what they sent.
+    // the user has a record of what they sent. Captions are unambiguous so
+    // the user can spot a slot swap immediately.
     appendEntry({
       id: nextId(),
       kind: "user-image",
       imageUrl: URL.createObjectURL(self),
-      caption: opponent ? "My squad" : undefined,
+      caption: effectiveOpponent ? "My squad (left slot)" : "My squad",
     });
-    if (opponent) {
+    if (effectiveOpponent) {
       appendEntry({
         id: nextId(),
         kind: "user-image",
-        imageUrl: URL.createObjectURL(opponent),
-        caption: "Opponent",
+        imageUrl: URL.createObjectURL(effectiveOpponent),
+        caption: "Opponent (right slot)",
+      });
+    }
+    if (sameFile) {
+      appendEntry({
+        id: nextId(),
+        kind: "system-error",
+        content:
+          "You attached the same file in both slots. Treating it as your squad only — re-upload a different opponent screenshot to enable counter-tactic mode.",
       });
     }
 
@@ -189,44 +235,44 @@ export default function AiSquadAdvisorPage() {
     appendEntry({
       id: loadingId,
       kind: "ai-loading",
-      label: opponent ? "Reading both squads…" : "Reading your squad…",
+      label: "Reading your squad…",
     });
 
     setPhase({ type: "extracting" });
 
-    const [selfResult, opponentResult] = await Promise.allSettled([
-      extractOneSquad(self),
-      opponent ? extractOneSquad(opponent) : Promise.resolve(null),
-    ]);
-
-    if (selfResult.status === "rejected") {
+    let draft: SquadDraft;
+    try {
+      draft = await extractOneSquad(self);
+    } catch (err) {
       replaceEntry(loadingId, {
         id: loadingId,
         kind: "system-error",
         content:
-          selfResult.reason instanceof Error
-            ? selfResult.reason.message
+          err instanceof Error
+            ? err.message
             : "Failed to extract your squad. Please try again.",
-        onRetry: () => extractAndConfirm(self, opponent),
+        onRetry: () => extractAndConfirm(self, effectiveOpponent),
         retryLabel: "Retry extraction",
       });
       setPhase({ type: "idle" });
       return;
     }
 
-    const draft = selfResult.value;
-
     let opponentSquad: Squad | null = null;
-    if (opponent) {
-      if (opponentResult.status === "fulfilled" && opponentResult.value) {
-        const oppDraft = opponentResult.value;
+    if (effectiveOpponent) {
+      replaceEntry(loadingId, {
+        id: loadingId,
+        kind: "ai-loading",
+        label: "Reading opponent…",
+      });
+      try {
+        const oppDraft = await extractOneSquad(effectiveOpponent);
         opponentSquad = {
           formation: oppDraft.formation,
           players: oppDraft.players,
         };
-      } else {
-        // Silent degrade: the user gets a soft warning but the flow continues
-        // as a single-squad plan.
+      } catch {
+        // Silent degrade: continue as a single-squad plan.
         appendEntry({
           id: nextId(),
           kind: "system-error",
@@ -307,6 +353,7 @@ export default function AiSquadAdvisorPage() {
           opponentSquad: opponentSquad ?? undefined,
           userContext: pendingUserContext || undefined,
           styleOverride,
+          language,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -384,6 +431,7 @@ export default function AiSquadAdvisorPage() {
           squad: prevPhase.squad,
           plan: prevPhase.plan,
           userContext: pendingUserContext || undefined,
+          language,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -528,6 +576,8 @@ export default function AiSquadAdvisorPage() {
             onOpponentImageChange={handleOpponentImageChange}
             onSubmit={handleDualSubmit}
             isSubmitting={false}
+            language={language}
+            onLanguageChange={handleLanguageChange}
           />
         </div>
       ) : (

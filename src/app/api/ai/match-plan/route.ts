@@ -171,6 +171,7 @@ export async function POST(request: Request) {
     platform: body.platform,
     userContext: body.userContext,
     styleOverride: body.styleOverride,
+    language: body.language,
   });
 
   try {
