@@ -10,6 +10,7 @@
 "use client";
 
 import { useRef, type ChangeEvent } from "react";
+import type { OutputLanguage } from "@/lib/ai/matchPlanSchema";
 
 type Props = {
   selfImageUrl: string;
@@ -20,7 +21,21 @@ type Props = {
   isSubmitting: boolean;
   /** Disable interaction (e.g. while a prior submission is in flight). */
   disabled?: boolean;
+  /** Output language for AI responses. Persisted by the page. */
+  language: OutputLanguage;
+  onLanguageChange: (lang: OutputLanguage) => void;
 };
+
+const LANGUAGE_OPTIONS: Array<{ value: OutputLanguage; label: string }> = [
+  { value: "en", label: "English" },
+  { value: "fa", label: "فارسی" },
+  { value: "ar", label: "العربية" },
+  { value: "es", label: "Español" },
+  { value: "de", label: "Deutsch" },
+  { value: "fr", label: "Français" },
+  { value: "tr", label: "Türkçe" },
+  { value: "pt", label: "Português" },
+];
 
 export function DualUploadCard({
   selfImageUrl,
@@ -30,27 +45,46 @@ export function DualUploadCard({
   onSubmit,
   isSubmitting,
   disabled,
+  language,
+  onLanguageChange,
 }: Props) {
   const canSubmit = Boolean(selfImageUrl) && !isSubmitting && !disabled;
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Big, unambiguous slot labels so users can't confuse left and right. */}
       <div className="grid grid-cols-2 gap-3">
-        <UploadSlot
-          label="Your squad"
-          required
-          imageUrl={selfImageUrl}
-          onChange={onSelfImageChange}
-          disabled={disabled}
-        />
-        <UploadSlot
-          label="Opponent"
-          hint="Optional · for counter-tactic"
-          imageUrl={opponentImageUrl}
-          onChange={onOpponentImageChange}
-          disabled={disabled}
-        />
+        <div className="flex flex-col gap-2">
+          <div className="text-center text-xs font-semibold uppercase tracking-[0.12em] text-valaccent">
+            Your squad
+          </div>
+          <UploadSlot
+            label="Your squad"
+            required
+            imageUrl={selfImageUrl}
+            onChange={onSelfImageChange}
+            disabled={disabled}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <div className="text-center text-xs font-semibold uppercase tracking-[0.12em] text-valmuted">
+            Opponent · optional
+          </div>
+          <UploadSlot
+            label="Opponent"
+            hint="For counter-tactic"
+            imageUrl={opponentImageUrl}
+            onChange={onOpponentImageChange}
+            disabled={disabled}
+          />
+        </div>
       </div>
+
+      <LanguageBox
+        value={language}
+        onChange={onLanguageChange}
+        disabled={disabled}
+      />
 
       <button
         type="button"
@@ -70,6 +104,41 @@ export function DualUploadCard({
               ? "Build counter-tactic plan"
               : "Build match plan"}
       </button>
+    </div>
+  );
+}
+
+function LanguageBox({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: OutputLanguage;
+  onChange: (lang: OutputLanguage) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-valelev px-4 py-3">
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-valmuted">
+          AI language
+        </div>
+        <div className="mt-0.5 text-[10px] text-valmuted/80">
+          Responses appear in this language. FC instruction names stay in English.
+        </div>
+      </div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as OutputLanguage)}
+        disabled={disabled}
+        className="rounded-xl border border-white/10 bg-valcard px-3 py-2 text-sm font-medium text-valtext outline-none focus:border-valaccent/40 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {LANGUAGE_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value} className="bg-valcard">
+            {opt.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

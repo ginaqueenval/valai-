@@ -53,12 +53,24 @@ RULES:
   say so briefly.
 `;
 
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: "English",
+  fa: "Persian (فارسی)",
+  ar: "Arabic (العربية)",
+  es: "Spanish (Español)",
+  de: "German (Deutsch)",
+  fr: "French (Français)",
+  tr: "Turkish (Türkçe)",
+  pt: "Portuguese (Português)",
+};
+
 type ChatRequestBody = {
   messages?: ChatMessage[];
   squad?: Squad | null;
   plan?: MatchPlan | null;
   platform?: string;
   userContext?: string;
+  language?: string;
 };
 
 export async function POST(request: Request) {
@@ -95,7 +107,14 @@ export async function POST(request: Request) {
     );
   }
 
+  const language = body.language ?? "en";
+  const languageLine =
+    language === "en"
+      ? null
+      : `OUTPUT LANGUAGE: respond entirely in ${LANGUAGE_NAMES[language] ?? language}. Keep FC instruction names ("Stay Wide", etc.) and PlayStyle names ("Quick Step", etc.) in English — those are the in-game strings.`;
+
   const contextBlock = [
+    ...(languageLine ? [languageLine, ""] : []),
     `Platform: ${body.platform ?? "unknown"}`,
     `User context: ${body.userContext && body.userContext.trim().length > 0 ? body.userContext : "not provided"}`,
     "",
