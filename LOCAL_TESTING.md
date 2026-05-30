@@ -75,6 +75,44 @@ Subreddits tested: 5
 Your computer can reach Reddit. The issue is Vercel's IP being blocked.
 ```
 
+## The Production Fix: PullPush.io (alternative to the Reddit API)
+
+The test above proves the code works locally but Vercel's IP is blocked by
+Reddit's `*.json` endpoints (403). To make the **daily cron actually collect
+data in production**, the pipeline now uses **PullPush.io** as its primary
+source.
+
+PullPush.io is the actively maintained successor to Pushshift: a free,
+**no-auth** archive of Reddit comments and submissions that is reachable from
+datacenter IPs. The pipeline queries it for the last couple of days of
+comments + posts per subreddit, so the daily cron keeps the data fresh.
+
+Test that PullPush is reachable (works from any IP, no key needed):
+
+```bash
+node test-pullpush-local.js
+```
+
+Expected: a count of comments + posts per subreddit and a `✅ SUCCESS` line.
+
+### How the source is selected
+
+`harvestResilient()` in `src/lib/ingestion/pipeline.ts` controls this via the
+`INGEST_SOURCE` env var:
+
+| `INGEST_SOURCE` | Behavior                                                      |
+| --------------- | ------------------------------------------------------------- |
+| _(unset)_/`auto`| Try PullPush first; fall back to Reddit `*.json` if it's empty |
+| `pullpush`      | PullPush only (no fallback)                                    |
+| `reddit`        | Reddit public JSON only (legacy behavior, for local runs)      |
+
+Optional: set `PULLPUSH_BASE_URL` to point at a mirror/self-host if the
+default `https://api.pullpush.io` ever changes.
+
+Everything downstream (Gemini classification → Postgres → daily aggregates →
+the AI's `lookupProfileSignal` lookups) is unchanged — PullPush just feeds the
+same `RedditItem` shape into the existing pipeline.
+
 ## Testing with Gemini (Optional)
 
 If you want to test classification with Gemini:

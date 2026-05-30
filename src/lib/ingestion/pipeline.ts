@@ -5,6 +5,7 @@
 // the latest mentions. Designed to run inside a cron function.
 
 import { harvestSubreddit, type RedditItem } from "./reddit";
+import { harvestSubredditViaPullPush } from "./pullpush";
 import {
   classifierModelId,
   classifyItems,
@@ -31,6 +32,39 @@ export type PipelineReport = {
   cardsExtracted: number;
   errors: string[];
 };
+
+/**
+ * Resilient per-subreddit harvest.
+ *
+ * Primary source is PullPush.io because Reddit's public *.json endpoints
+ * return 403 from datacenter IPs (Vercel). If PullPush yields nothing —
+ * downtime, rate limit, or the subreddit isn't indexed — we fall back to the
+ * direct Reddit JSON fetcher, which still works from residential IPs and for
+ * manual/local runs.
+ *
+ * Set INGEST_SOURCE=reddit to skip PullPush, or INGEST_SOURCE=pullpush to
+ * skip the fallback. Default ("auto") tries PullPush first, then Reddit.
+ */
+async function harvestResilient(
+  subreddit: string,
+  maxItems: number
+): Promise<RedditItem[]> {
+  const mode = (process.env.INGEST_SOURCE ?? "auto").toLowerCase();
+
+  if (mode !== "reddit") {
+    try {
+      const items = await harvestSubredditViaPullPush(subreddit, maxItems);
+      if (items.length > 0) return items;
+      console.warn(`[pipeline] PullPush returned 0 for r/${subreddit}`);
+    } catch (err) {
+      console.error(`[pipeline] PullPush harvest failed for r/${subreddit}`, err);
+    }
+    if (mode === "pullpush") return [];
+  }
+
+  // Fallback (or INGEST_SOURCE=reddit): direct Reddit public JSON.
+  return harvestSubreddit(subreddit, maxItems);
+}
 
 async function insertSources(items: RedditItem[]): Promise<Map<string, bigint>> {
   // Map of external_id -> id (so we can attach classifications + entities).
@@ -348,7 +382,7 @@ export async function runPipeline(): Promise<PipelineReport> {
   for (const sub of TARGET_SUBREDDITS) {
     try {
       console.log(`[pipeline] harvesting r/${sub}`);
-      const items = await harvestSubreddit(sub, MAX_ITEMS_PER_SUBREDDIT);
+      const items = await harvestResilient(sub, MAX_ITEMS_PER_SUBREDDIT);
       console.log(`[pipeline] r/${sub} yielded ${items.length} items`);
       allItems.push(...items);
     } catch (err) {
