@@ -3,6 +3,7 @@
 // Big C5 card (row 2 right). Pre-analysis: DropZone. Post-analysis: SquadPreview.
 
 import { DropZone } from "@/components/advisor/DropZone";
+import { SquadPreview } from "@/components/advisor/SquadPreview";
 
 export function BentoHero({
   mode,
@@ -22,23 +23,5 @@ export function BentoHero({
   }
 
   // Post-analysis: show squad preview
-  if (!imageUrl) {
-    return (
-      <div className="rounded-2xl border border-valaccent/40 bg-valcard/40 flex items-center justify-center aspect-square">
-        <div className="text-center text-valmuted text-sm">
-          No squad preview
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-valaccent/40 bg-valcard/40 overflow-hidden aspect-square">
-      <img
-        src={imageUrl}
-        alt="Squad preview"
-        className="w-full h-full object-cover"
-      />
-    </div>
-  );
+  return <SquadPreview imageUrl={imageUrl} />;
 }
