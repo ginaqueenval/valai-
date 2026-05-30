@@ -1,50 +1,32 @@
 // src/app/ai-squad-advisor/page.tsx
 //
-// Chat-stream coaching UI. Everything happens in one vertical thread:
-//   - User uploads squad → vision extracts a draft → user edits & confirms
-//     → AI returns a MatchPlan → conversation continues.
-// The composer is always there at the bottom for image attachments and text.
+// Bento-grid dashboard + chat. Two sections:
+//   - Dashboard (top): intake controls + analysis results in bento grid
+//   - Chat log (middle): conversation history, grows as messages accumulate
+//   - Bottom bar (sticky): composer + iOS tab bar
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { LargeTitleHeader } from "@/components/ui/LargeTitleHeader";
-import { StatusPill } from "@/components/ui/StatusPill";
+import { useEffect, useRef, useState } from "react";
+import { DashboardTitle } from "@/components/advisor/DashboardTitle";
+import { DashboardBento } from "@/components/advisor/DashboardBento";
+import { ChatLog } from "@/components/advisor/ChatLog";
 import { StreamComposer } from "@/components/advisor/StreamComposer";
-import {
-  StreamMessage,
-  type StreamEntry,
-} from "@/components/advisor/StreamMessage";
+import { BottomBar } from "@/components/layout/BottomBar";
 import { DualUploadCard } from "@/components/advisor/DualUploadCard";
 import type {
   MatchPlan,
   OutputLanguage,
-  PlayStyle,
+  Platform,
   Squad,
   SquadDraft,
 } from "@/lib/ai/matchPlanSchema";
 import { clearSession, loadSession, saveSession } from "@/lib/storage/session";
+import { DIVISION_OPTIONS } from "@/components/advisor/BentoDivision";
+import type { StreamEntry } from "@/components/advisor/StreamMessage";
+import type { ChipItem } from "@/components/advisor/BentoChipStrip";
 
 const LANGUAGE_STORAGE_KEY = "valai:language:v1";
-
-type Phase =
-  | { type: "idle" }
-  | { type: "extracting" }
-  | { type: "confirming"; draft: SquadDraft; opponentSquad: Squad | null }
-  | { type: "planning"; squad: Squad; opponentSquad: Squad | null }
-  | { type: "ready"; squad: Squad; plan: MatchPlan; opponentSquad: Squad | null }
-  | {
-      type: "replanning";
-      squad: Squad;
-      plan: MatchPlan;
-      opponentSquad: Squad | null;
-    }
-  | {
-      type: "chatting";
-      squad: Squad;
-      plan: MatchPlan;
-      opponentSquad: Squad | null;
-    };
 
 let entryCounter = 0;
 function nextId() {
@@ -53,27 +35,34 @@ function nextId() {
 }
 
 export default function AiSquadAdvisorPage() {
-  const [phase, setPhase] = useState<Phase>({ type: "idle" });
-  // In idle the dual upload card carries the conversation, so we start with
-  // an empty thread. The first stream entries get appended once the user
-  // submits a squad.
-  const [entries, setEntries] = useState<StreamEntry[]>([]);
+  // Dashboard state
+  const [result, setResult] = useState<MatchPlan | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Dual upload slots: left = user's own squad (required), right = opponent
-  // (optional, triggers counter-tactical mode).
+  // Image uploads (dual slots)
   const [selfImage, setSelfImage] = useState<File | null>(null);
   const [selfImageUrl, setSelfImageUrl] = useState("");
   const [opponentImage, setOpponentImage] = useState<File | null>(null);
   const [opponentImageUrl, setOpponentImageUrl] = useState("");
 
-  // Composer is for follow-up chat after a plan exists.
+  // Intake controls
+  const [platform, setPlatform] = useState<Platform>("PlayStation");
+  const [divisionLevel, setDivisionLevel] = useState(DIVISION_OPTIONS[6]);
+  const [currentTactics, setCurrentTactics] = useState("");
+
+  // Chat state
+  const [entries, setEntries] = useState<StreamEntry[]>([]);
   const [composerText, setComposerText] = useState("");
-  const [pendingUserContext, setPendingUserContext] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
-  // AI output language. Persisted across reloads via localStorage so users
-  // don't have to re-pick it every visit.
+  // AI output language
   const [language, setLanguage] = useState<OutputLanguage>("en");
+
+  // Confirmed squad (extracted from image)
+  const [squad, setSquad] = useState<Squad | null>(null);
+  const [opponentSquad, setOpponentSquad] = useState<Squad | null>(null);
 
   function handleLanguageChange(next: OutputLanguage) {
     setLanguage(next);
@@ -84,14 +73,8 @@ export default function AiSquadAdvisorPage() {
     }
   }
 
-  const scrollEndRef = useRef<HTMLDivElement | null>(null);
-
-  // Hydrate from localStorage on mount. We restore squad + plan + context as
-  // a "resumed session" message so the user understands they're picking up
-  // where they left off, not starting fresh.
+  // Hydrate from localStorage
   useEffect(() => {
-    // Language preference is stored independently of the session so a user
-    // who resets still keeps their preferred language.
     try {
       const storedLang = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
       if (storedLang) setLanguage(storedLang as OutputLanguage);
@@ -100,82 +83,23 @@ export default function AiSquadAdvisorPage() {
     }
 
     const stored = loadSession();
+    if (stored) {
+      setSquad(stored.squad);
+      setResult(stored.plan);
+    }
     setHydrated(true);
-    if (!stored) return;
-
-    setPendingUserContext(stored.userContext);
-    setPhase({
-      type: "ready",
-      squad: stored.squad,
-      plan: stored.plan,
-      opponentSquad: null,
-    });
-    setEntries([
-      {
-        id: nextId(),
-        kind: "ai-text",
-        content:
-          "Picking up from your last session. Your match plan is below — ask follow-ups, pivot the style, or reset to start over.",
-      },
-      { id: nextId(), kind: "ai-match-plan", plan: stored.plan },
-    ]);
   }, []);
 
-  // Persist whenever phase carries a ready plan. We only save on the "ready"
-  // edges so we don't write during loading transitions.
+  // Persist when result changes
   useEffect(() => {
-    if (!hydrated) return;
-    if (phase.type === "ready") {
-      saveSession({
-        squad: phase.squad,
-        plan: phase.plan,
-        userContext: pendingUserContext,
-      });
-    }
-  }, [hydrated, phase, pendingUserContext]);
+    if (!hydrated || !squad || !result) return;
+    saveSession({
+      squad,
+      plan: result,
+      userContext: currentTactics,
+    });
+  }, [hydrated, squad, result, currentTactics]);
 
-  function appendEntry(entry: StreamEntry) {
-    setEntries((prev) => [...prev, entry]);
-  }
-
-  function replaceEntry(id: string, entry: StreamEntry) {
-    setEntries((prev) => prev.map((e) => (e.id === id ? entry : e)));
-  }
-
-  useEffect(() => {
-    scrollEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [entries.length]);
-
-  const isBusy =
-    phase.type === "extracting" ||
-    phase.type === "planning" ||
-    phase.type === "replanning" ||
-    phase.type === "chatting";
-
-  function handleSelfImageChange(file: File | null) {
-    if (selfImageUrl) URL.revokeObjectURL(selfImageUrl);
-    if (file) {
-      setSelfImage(file);
-      setSelfImageUrl(URL.createObjectURL(file));
-    } else {
-      setSelfImage(null);
-      setSelfImageUrl("");
-    }
-  }
-
-  function handleOpponentImageChange(file: File | null) {
-    if (opponentImageUrl) URL.revokeObjectURL(opponentImageUrl);
-    if (file) {
-      setOpponentImage(file);
-      setOpponentImageUrl(URL.createObjectURL(file));
-    } else {
-      setOpponentImage(null);
-      setOpponentImageUrl("");
-    }
-  }
-
-  /** Calls the squad-extract endpoint for a single image. Returns the draft
-   *  on success, throws on failure. */
   async function extractOneSquad(file: File): Promise<SquadDraft> {
     const fd = new FormData();
     fd.append("squadImage", file);
@@ -187,238 +111,93 @@ export default function AiSquadAdvisorPage() {
     return data.draft as SquadDraft;
   }
 
-  /** Pulls the self image (required) through vision extraction first, then
-   *  the opponent (optional). Running these sequentially — not in parallel —
-   *  guarantees the user always sees THEIR draft in the confirmation editor.
-   *  An earlier parallel version was reported as confusing because the second
-   *  loading bubble made it ambiguous which lineup the editor belonged to.
-   *  Opponent extraction failing is non-fatal: we fall back to the
-   *  single-squad path with a notice in the stream. */
-  async function extractAndConfirm(self: File, opponent: File | null) {
-    // Sanity-check: if the user accidentally attached the same file in both
-    // slots (e.g. picked the wrong file second), treat the opponent slot as
-    // empty rather than analyzing the same squad twice.
-    const sameFile =
-      opponent !== null &&
-      opponent.name === self.name &&
-      opponent.size === self.size &&
-      opponent.lastModified === self.lastModified;
-    const effectiveOpponent = sameFile ? null : opponent;
+  async function handleDualSubmit() {
+    if (!selfImage) return;
 
-    // Drop the user-uploaded images into the stream as visible messages so
-    // the user has a record of what they sent. Captions are unambiguous so
-    // the user can spot a slot swap immediately.
-    appendEntry({
-      id: nextId(),
-      kind: "user-image",
-      imageUrl: URL.createObjectURL(self),
-      caption: effectiveOpponent ? "My squad (left slot)" : "My squad",
-    });
-    if (effectiveOpponent) {
-      appendEntry({
-        id: nextId(),
-        kind: "user-image",
-        imageUrl: URL.createObjectURL(effectiveOpponent),
-        caption: "Opponent (right slot)",
-      });
-    }
-    if (sameFile) {
-      appendEntry({
-        id: nextId(),
-        kind: "system-error",
-        content:
-          "You attached the same file in both slots. Treating it as your squad only — re-upload a different opponent screenshot to enable counter-tactic mode.",
-      });
-    }
-
-    const loadingId = nextId();
-    appendEntry({
-      id: loadingId,
-      kind: "ai-loading",
-      label: "Reading your squad…",
-    });
-
-    setPhase({ type: "extracting" });
+    setIsLoading(true);
+    setErrorMessage(null);
 
     let draft: SquadDraft;
     try {
-      draft = await extractOneSquad(self);
+      draft = await extractOneSquad(selfImage);
     } catch (err) {
-      replaceEntry(loadingId, {
-        id: loadingId,
-        kind: "system-error",
-        content:
-          err instanceof Error
-            ? err.message
-            : "Failed to extract your squad. Please try again.",
-        onRetry: () => extractAndConfirm(self, effectiveOpponent),
-        retryLabel: "Retry extraction",
-      });
-      setPhase({ type: "idle" });
+      setErrorMessage(err instanceof Error ? err.message : "Failed to extract squad.");
+      setIsLoading(false);
       return;
     }
 
-    let opponentSquad: Squad | null = null;
-    if (effectiveOpponent) {
-      replaceEntry(loadingId, {
-        id: loadingId,
-        kind: "ai-loading",
-        label: "Reading opponent…",
-      });
+    const extractedSquad: Squad = {
+      formation: draft.formation,
+      players: draft.players,
+    };
+
+    let extractedOpponent: Squad | null = null;
+    if (opponentImage) {
       try {
-        const oppDraft = await extractOneSquad(effectiveOpponent);
-        opponentSquad = {
+        const oppDraft = await extractOneSquad(opponentImage);
+        extractedOpponent = {
           formation: oppDraft.formation,
           players: oppDraft.players,
         };
       } catch {
-        // Silent degrade: continue as a single-squad plan.
-        appendEntry({
-          id: nextId(),
-          kind: "system-error",
-          content:
-            "Couldn't read the opponent screenshot — continuing without counter-tactic.",
-        });
+        // Silent fail: continue without opponent
       }
     }
 
-    replaceEntry(loadingId, {
-      id: loadingId,
-      kind: "ai-squad-draft",
-      draft,
-      onConfirm: (squad) => buildMatchPlan(squad, undefined, opponentSquad),
-    });
-    setPhase({ type: "confirming", draft, opponentSquad });
-  }
-
-  async function buildMatchPlan(
-    squad: Squad,
-    styleOverride?: PlayStyle,
-    opponentOverride?: Squad | null
-  ) {
-    // For re-plans (pivots), reuse the opponent that the active plan was
-    // built against. For first plans, opponentOverride is the value the
-    // confirmation flow handed us.
-    const opponentSquad =
-      opponentOverride !== undefined
-        ? opponentOverride
-        : phase.type === "ready" ||
-            phase.type === "chatting" ||
-            phase.type === "replanning"
-          ? phase.opponentSquad
-          : null;
-
-    const loadingId = nextId();
-    appendEntry({
-      id: loadingId,
-      kind: "ai-loading",
-      label: styleOverride
-        ? `Rebuilding plan for ${styleOverride}…`
-        : opponentSquad
-          ? "Building counter-tactic plan…"
-          : "Building your match plan…",
-    });
-
-    // Mark the existing squad-draft entry (if any) as a static confirmation so
-    // it stops accepting edits while the plan is being built.
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.kind === "ai-squad-draft" ? { ...e, isConfirming: true } : e
-      )
-    );
-
-    // Capture the previous plan so we can restore it on failure during a pivot.
-    const prevReadyPlan =
-      phase.type === "ready" || phase.type === "chatting"
-        ? phase.plan
-        : null;
-
-    setPhase((prev) =>
-      prev.type === "ready" || prev.type === "chatting"
-        ? {
-            type: "replanning",
-            squad: prev.squad,
-            plan: prev.plan,
-            opponentSquad: prev.opponentSquad,
-          }
-        : { type: "planning", squad, opponentSquad }
-    );
-
+    // Auto-build the match plan
     try {
       const res = await fetch("/api/ai/match-plan", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          squad,
-          opponentSquad: opponentSquad ?? undefined,
-          userContext: pendingUserContext || undefined,
-          styleOverride,
+          squad: extractedSquad,
+          opponentSquad: extractedOpponent ?? undefined,
+          userContext: currentTactics || undefined,
           language,
         }),
       });
+
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success || !data?.plan) {
-        throw new Error(data?.error ?? `Plan failed (HTTP ${res.status}).`);
+        throw new Error(data?.error ?? "Failed to build plan.");
       }
-      const plan = data.plan as MatchPlan;
 
-      replaceEntry(loadingId, {
-        id: loadingId,
-        kind: "ai-match-plan",
-        plan,
-      });
-      setPhase({ type: "ready", squad, plan, opponentSquad });
+      setSquad(extractedSquad);
+      setOpponentSquad(extractedOpponent);
+      setResult(data.plan as MatchPlan);
+      setErrorMessage(null);
+
+      // Clear image selections
+      setSelfImage(null);
+      setSelfImageUrl("");
+      setOpponentImage(null);
+      setOpponentImageUrl("");
     } catch (err) {
-      replaceEntry(loadingId, {
-        id: loadingId,
-        kind: "system-error",
-        content:
-          err instanceof Error
-            ? err.message
-            : "Failed to build match plan. Please try again.",
-        onRetry: () => buildMatchPlan(squad, styleOverride, opponentSquad),
-        retryLabel: styleOverride ? "Retry re-plan" : "Retry plan",
-      });
-      // Failed re-plan: keep the user on the previous plan, not back at
-      // squad confirmation. Failed initial plan: drop back to confirming.
-      if (prevReadyPlan) {
-        setPhase({ type: "ready", squad, plan: prevReadyPlan, opponentSquad });
-      } else {
-        setPhase({
-          type: "confirming",
-          draft: { ...squad, confidence: "high" },
-          opponentSquad,
-        });
-      }
+      setErrorMessage(err instanceof Error ? err.message : "Failed to build plan.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
   async function sendChatMessage(content: string) {
+    if (!result || !squad) return;
+
     const trimmed = content.trim();
     if (!trimmed) return;
-    if (phase.type !== "ready" && phase.type !== "chatting") return;
 
-    const userEntryId = nextId();
-    appendEntry({ id: userEntryId, kind: "user-text", content: trimmed });
+    setEntries((prev) => [
+      ...prev,
+      { id: nextId(), kind: "user-text", content: trimmed },
+    ]);
+    setComposerText("");
+    setIsSending(true);
 
-    const loadingId = nextId();
-    appendEntry({ id: loadingId, kind: "ai-loading", label: "Thinking…" });
-
-    const prevPhase = phase;
-    setPhase({
-      type: "chatting",
-      squad: prevPhase.squad,
-      plan: prevPhase.plan,
-      opponentSquad: prevPhase.opponentSquad,
-    });
-
-    // Build chat history from prior user-text / ai-text entries.
     const history = entries
       .filter((e) => e.kind === "user-text" || e.kind === "ai-text")
       .map((e) =>
         e.kind === "user-text"
           ? { role: "user" as const, content: e.content }
-          : { role: "assistant" as const, content: (e as { content: string }).content }
+          : { role: "assistant" as const, content: (e as any).content }
       );
     history.push({ role: "user", content: trimmed });
 
@@ -428,217 +207,151 @@ export default function AiSquadAdvisorPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           messages: history,
-          squad: prevPhase.squad,
-          plan: prevPhase.plan,
-          userContext: pendingUserContext || undefined,
+          squad,
+          plan: result,
           language,
         }),
       });
+
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success || !data?.reply) {
-        throw new Error(data?.error ?? `Chat failed (HTTP ${res.status}).`);
+        throw new Error(data?.error ?? "Chat failed.");
       }
 
-      replaceEntry(loadingId, {
-        id: loadingId,
-        kind: "ai-text",
-        content: String(data.reply),
-      });
+      setEntries((prev) => [
+        ...prev,
+        { id: nextId(), kind: "ai-text", content: data.reply },
+      ]);
     } catch (err) {
-      replaceEntry(loadingId, {
-        id: loadingId,
-        kind: "system-error",
-        content:
-          err instanceof Error
-            ? err.message
-            : "Chat request failed. Please try again.",
-        onRetry: () => sendChatMessage(trimmed),
-        retryLabel: "Retry",
-      });
+      setEntries((prev) => [
+        ...prev,
+        {
+          id: nextId(),
+          kind: "system-error",
+          content: err instanceof Error ? err.message : "Chat failed.",
+        },
+      ]);
     } finally {
-      setPhase({
-        type: "ready",
-        squad: prevPhase.squad,
-        plan: prevPhase.plan,
-        opponentSquad: prevPhase.opponentSquad,
-      });
+      setIsSending(false);
     }
   }
 
-  function handleResetSession() {
+  function handleReset() {
     clearSession();
-    setPhase({ type: "idle" });
-    setPendingUserContext("");
-    handleSelfImageChange(null);
-    handleOpponentImageChange(null);
-    setComposerText("");
+    setResult(null);
+    setSquad(null);
+    setOpponentSquad(null);
     setEntries([]);
-  }
-
-  function handleDualSubmit() {
-    if (!selfImage) return;
-    const self = selfImage;
-    const opponent = opponentImage;
-    // Don't reset the URLs immediately — the stream entries below hold their
-    // own object URLs (created in extractAndConfirm). Clearing now would
-    // revoke the URLs the dual card still owns; we clear after extract is
-    // queued.
+    setComposerText("");
     setSelfImage(null);
     setSelfImageUrl("");
     setOpponentImage(null);
     setOpponentImageUrl("");
-    extractAndConfirm(self, opponent);
   }
 
-  function handleComposerSubmit() {
-    if (phase.type === "ready" || phase.type === "chatting") {
-      const text = composerText;
-      setComposerText("");
-      sendChatMessage(text);
-    }
-  }
+  // Chip strip items (goals or callouts)
+  const chipItems: ChipItem[] = result
+    ? [] // TODO: callout navigator chips
+    : [
+        { id: "best-overall", label: "Best Overall", active: true },
+        { id: "better-attack", label: "Better Attack", active: false },
+        { id: "better-defense", label: "Better Defense", active: false },
+        { id: "better-tactics", label: "Better Tactics", active: false },
+        { id: "weekend-league", label: "Weekend League", active: false },
+      ];
 
-  // The composer is now ONLY for follow-up chat. Initial uploads happen via
-  // the dual upload card in idle. We mount the composer only after a plan
-  // exists.
-  const showComposer =
-    phase.type === "ready" ||
-    phase.type === "chatting" ||
-    phase.type === "replanning";
-
-  const lastPlanIndex = useMemo(() => {
-    for (let i = entries.length - 1; i >= 0; i--) {
-      if (entries[i].kind === "ai-match-plan") return i;
-    }
-    return -1;
-  }, [entries]);
-
-  const status = useMemo(() => {
-    const pill = (() => {
-      switch (phase.type) {
-        case "idle":
-          return <StatusPill dot>Ready</StatusPill>;
-        case "extracting":
-          return <StatusPill dot>Reading squad</StatusPill>;
-        case "confirming":
-          return <StatusPill dot>Confirm lineup</StatusPill>;
-        case "planning":
-        case "replanning":
-          return <StatusPill dot>Building plan</StatusPill>;
-        case "ready":
-          return <StatusPill>Plan ready</StatusPill>;
-        case "chatting":
-          return <StatusPill dot>Thinking</StatusPill>;
+  const stats = result
+    ? {
+        critical: result.watchOut?.filter((w) => w.area.includes("critical")).length ?? 0,
+        callouts: result.watchOut?.length ?? 0,
+        warning: result.watchOut?.filter((w) => w.area.includes("warning")).length ?? 0,
       }
-    })();
+    : { critical: "—", callouts: "—", warning: "—" };
 
-    // Once there's a plan, show a Reset button next to the status so the user
-    // can wipe persisted state and start over without spelunking through
-    // browser storage.
-    const showReset =
-      phase.type === "ready" ||
-      phase.type === "chatting" ||
-      phase.type === "replanning";
-
-    return (
-      <div className="flex items-center gap-2">
-        {pill}
-        {showReset ? (
-          <button
-            type="button"
-            onClick={handleResetSession}
-            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-valmuted transition hover:bg-white/[0.08] hover:text-valtext"
-          >
-            Reset
-          </button>
-        ) : null}
-      </div>
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.type]);
-
-  const isIdle = phase.type === "idle";
+  const bentoMode = result ? "post" : "pre";
 
   return (
-    <main
-      className={`mx-auto flex min-h-[100dvh] max-w-2xl flex-col px-4 md:px-6 ${
-        isIdle ? "pt-6 pb-6" : "pt-8 pb-[140px]"
-      }`}
-    >
-      {isIdle ? (
-        // Idle state: no header, no welcome text. The dual upload card IS the
-        // conversation entry point.
-        <div className="mt-6 flex flex-1 flex-col items-center justify-center">
+    <main className="mx-auto max-w-2xl px-4 md:px-6 pt-6 pb-[180px]">
+      <DashboardTitle isReady={!!result} />
+
+      {!result ? (
+        // Pre-analysis: show DualUploadCard
+        <div className="mt-8 max-w-md mx-auto">
           <DualUploadCard
             selfImageUrl={selfImageUrl}
             opponentImageUrl={opponentImageUrl}
-            onSelfImageChange={handleSelfImageChange}
-            onOpponentImageChange={handleOpponentImageChange}
+            onSelfImageChange={(file) => {
+              if (selfImageUrl) URL.revokeObjectURL(selfImageUrl);
+              if (file) {
+                setSelfImage(file);
+                setSelfImageUrl(URL.createObjectURL(file));
+              } else {
+                setSelfImage(null);
+                setSelfImageUrl("");
+              }
+            }}
+            onOpponentImageChange={(file) => {
+              if (opponentImageUrl) URL.revokeObjectURL(opponentImageUrl);
+              if (file) {
+                setOpponentImage(file);
+                setOpponentImageUrl(URL.createObjectURL(file));
+              } else {
+                setOpponentImage(null);
+                setOpponentImageUrl("");
+              }
+            }}
             onSubmit={handleDualSubmit}
-            isSubmitting={false}
+            isSubmitting={isLoading}
             language={language}
             onLanguageChange={handleLanguageChange}
           />
         </div>
       ) : (
-        <LargeTitleHeader
-          eyebrow="AI Squad Advisor"
-          title="Match Plan"
-          subtitle="Upload your squad. Get an opinionated plan. Ask follow-ups."
-          status={status}
-        />
+        // Post-analysis: show Bento
+        <>
+          <DashboardBento
+            mode={bentoMode}
+            isLoading={isLoading}
+            onAnalyzeClick={handleReset}
+            selfImageUrl={selfImageUrl}
+            onSelfImageChange={() => {}}
+            platform={platform}
+            onPlatformChange={setPlatform}
+            divisionLevel={divisionLevel}
+            onDivisionChange={setDivisionLevel}
+            currentTactics={currentTactics}
+            onTacticsChange={setCurrentTactics}
+            stats={stats}
+            chipItems={chipItems}
+            onChipSelect={() => {}}
+            disabled={false}
+          />
+
+          {entries.length > 0 && (
+            <ChatLog entries={entries} isSending={isSending} error={errorMessage} />
+          )}
+        </>
       )}
 
-      <div className="mt-6 flex flex-col gap-4">
-        {entries.map((entry, idx) => {
-          // Only the latest ai-match-plan gets pivot chips. Older plans are
-          // history — clicking a chip on an old plan would re-run from stale
-          // state and confuse the thread. We include "replanning" here so the
-          // chips render in their disabled (isPivoting) state during a re-plan
-          // instead of disappearing.
-          const isLatestPlan =
-            entry.kind === "ai-match-plan" &&
-            idx === lastPlanIndex &&
-            (phase.type === "ready" ||
-              phase.type === "chatting" ||
-              phase.type === "replanning");
-
-          const currentPhaseType = phase.type;
-          const augmented =
-            isLatestPlan && entry.kind === "ai-match-plan"
-              ? {
-                  ...entry,
-                  onPivot: (style: PlayStyle) => {
-                    if (phase.type === "ready" || phase.type === "chatting") {
-                      buildMatchPlan(phase.squad, style);
-                    }
-                  },
-                  isPivoting: currentPhaseType === "replanning",
-                }
-              : entry;
-
-          return <StreamMessage key={entry.id} entry={augmented} />;
-        })}
-        <div ref={scrollEndRef} />
-      </div>
-
-      {showComposer ? (
-      <div className="fixed inset-x-0 bottom-0 z-50 px-4 pb-4 md:px-6 md:pb-6">
-        <div className="mx-auto max-w-2xl">
-          <StreamComposer
-            value={composerText}
-            onChange={setComposerText}
-            attachedImage={null}
-            attachedImageUrl=""
-            onAttachImage={() => {}}
-            onSubmit={handleComposerSubmit}
-            isSending={isBusy}
-            mode="chat"
-            hideAttach
-          />
+      {errorMessage && !result && (
+        <div className="mt-4 p-3 rounded-lg bg-red-500/10 text-sm text-red-400">
+          {errorMessage}
         </div>
-      </div>
-      ) : null}
+      )}
+
+      <BottomBar>
+        <StreamComposer
+          value={composerText}
+          onChange={setComposerText}
+          attachedImage={null}
+          attachedImageUrl=""
+          onAttachImage={() => {}}
+          onSubmit={() => result && sendChatMessage(composerText)}
+          isSending={isSending}
+          mode="chat"
+          hideAttach
+        />
+      </BottomBar>
     </main>
   );
 }
