@@ -31,6 +31,9 @@ export type PipelineReport = {
   aggregates: number;
   cardsExtracted: number;
   errors: string[];
+  // Per-subreddit, per-source diagnostics so we can see WHY a run fetched 0
+  // (e.g. "pullpush:0", "reddit:403") without reading server logs.
+  debug?: string[];
 };
 
 /**
@@ -47,23 +50,33 @@ export type PipelineReport = {
  */
 async function harvestResilient(
   subreddit: string,
-  maxItems: number
+  maxItems: number,
+  debug: string[]
 ): Promise<RedditItem[]> {
   const mode = (process.env.INGEST_SOURCE ?? "auto").toLowerCase();
 
   if (mode !== "reddit") {
     try {
       const items = await harvestSubredditViaPullPush(subreddit, maxItems);
+      debug.push(`r/${subreddit} pullpush=${items.length}`);
       if (items.length > 0) return items;
       console.warn(`[pipeline] PullPush returned 0 for r/${subreddit}`);
     } catch (err) {
+      debug.push(`r/${subreddit} pullpush ERR: ${(err as Error).message}`);
       console.error(`[pipeline] PullPush harvest failed for r/${subreddit}`, err);
     }
     if (mode === "pullpush") return [];
   }
 
   // Fallback (or INGEST_SOURCE=reddit): direct Reddit public JSON.
-  return harvestSubreddit(subreddit, maxItems);
+  try {
+    const items = await harvestSubreddit(subreddit, maxItems);
+    debug.push(`r/${subreddit} reddit=${items.length}`);
+    return items;
+  } catch (err) {
+    debug.push(`r/${subreddit} reddit ERR: ${(err as Error).message}`);
+    return [];
+  }
 }
 
 async function insertSources(items: RedditItem[]): Promise<Map<string, bigint>> {
@@ -366,7 +379,10 @@ export async function runPipeline(): Promise<PipelineReport> {
     aggregates: 0,
     cardsExtracted: 0,
     errors: [],
+    debug: [],
   };
+  const debug = report.debug!;
+  debug.push(`source mode=${(process.env.INGEST_SOURCE ?? "auto").toLowerCase()}`);
 
   try {
     await ensureSchema();
@@ -382,7 +398,7 @@ export async function runPipeline(): Promise<PipelineReport> {
   for (const sub of TARGET_SUBREDDITS) {
     try {
       console.log(`[pipeline] harvesting r/${sub}`);
-      const items = await harvestResilient(sub, MAX_ITEMS_PER_SUBREDDIT);
+      const items = await harvestResilient(sub, MAX_ITEMS_PER_SUBREDDIT, debug);
       console.log(`[pipeline] r/${sub} yielded ${items.length} items`);
       allItems.push(...items);
     } catch (err) {
