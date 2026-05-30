@@ -13,7 +13,6 @@ import { DashboardBento } from "@/components/advisor/DashboardBento";
 import { ChatLog } from "@/components/advisor/ChatLog";
 import { StreamComposer } from "@/components/advisor/StreamComposer";
 import { BottomBar } from "@/components/layout/BottomBar";
-import { DualUploadCard } from "@/components/advisor/DualUploadCard";
 import type {
   MatchPlan,
   OutputLanguage,
@@ -274,69 +273,45 @@ export default function AiSquadAdvisorPage() {
     <main className="mx-auto max-w-2xl px-4 md:px-6 pt-6 pb-[180px]">
       <DashboardTitle isReady={!!result} />
 
-      {!result ? (
-        // Pre-analysis: show DualUploadCard
-        <div className="mt-8 max-w-md mx-auto">
-          <DualUploadCard
-            selfImageUrl={selfImageUrl}
-            opponentImageUrl={opponentImageUrl}
-            onSelfImageChange={(file) => {
-              if (selfImageUrl) URL.revokeObjectURL(selfImageUrl);
-              if (file) {
-                setSelfImage(file);
-                setSelfImageUrl(URL.createObjectURL(file));
-              } else {
-                setSelfImage(null);
-                setSelfImageUrl("");
-              }
-            }}
-            onOpponentImageChange={(file) => {
-              if (opponentImageUrl) URL.revokeObjectURL(opponentImageUrl);
-              if (file) {
-                setOpponentImage(file);
-                setOpponentImageUrl(URL.createObjectURL(file));
-              } else {
-                setOpponentImage(null);
-                setOpponentImageUrl("");
-              }
-            }}
-            onSubmit={handleDualSubmit}
-            isSubmitting={isLoading}
-            language={language}
-            onLanguageChange={handleLanguageChange}
-          />
-        </div>
-      ) : (
-        // Post-analysis: show Bento
-        <>
-          <DashboardBento
-            mode={bentoMode}
-            isLoading={isLoading}
-            onAnalyzeClick={handleReset}
-            selfImageUrl={selfImageUrl}
-            onSelfImageChange={() => {}}
-            platform={platform}
-            onPlatformChange={setPlatform}
-            divisionLevel={divisionLevel}
-            onDivisionChange={setDivisionLevel}
-            currentTactics={currentTactics}
-            onTacticsChange={setCurrentTactics}
-            stats={stats}
-            chipItems={chipItems}
-            onChipSelect={() => {}}
-            disabled={false}
-          />
+      {/* Always show bento (pre or post analysis) */}
+      <div className="mt-8">
+        <DashboardBento
+          mode={bentoMode}
+          isLoading={isLoading}
+          onAnalyzeClick={result ? handleReset : handleDualSubmit}
+          selfImageUrl={selfImageUrl}
+          onSelfImageChange={(file) => {
+            if (selfImageUrl) URL.revokeObjectURL(selfImageUrl);
+            if (file) {
+              setSelfImage(file);
+              setSelfImageUrl(URL.createObjectURL(file));
+            } else {
+              setSelfImage(null);
+              setSelfImageUrl("");
+            }
+          }}
+          platform={platform}
+          onPlatformChange={setPlatform}
+          divisionLevel={divisionLevel}
+          onDivisionChange={setDivisionLevel}
+          currentTactics={currentTactics}
+          onTacticsChange={setCurrentTactics}
+          stats={stats}
+          chipItems={chipItems}
+          onChipSelect={() => {}}
+          disabled={isLoading}
+        />
+      </div>
 
-          {entries.length > 0 && (
-            <ChatLog entries={entries} isSending={isSending} error={errorMessage} />
-          )}
-        </>
-      )}
-
-      {errorMessage && !result && (
+      {errorMessage && (
         <div className="mt-4 p-3 rounded-lg bg-red-500/10 text-sm text-red-400">
           {errorMessage}
         </div>
+      )}
+
+      {/* Chat log appears after analysis */}
+      {result && entries.length > 0 && (
+        <ChatLog entries={entries} isSending={isSending} error={errorMessage} />
       )}
 
       <BottomBar>
