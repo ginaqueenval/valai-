@@ -34,6 +34,9 @@ const FIELD_ALIASES: Record<string, string[]> = {
   traits: ["player_traits", "traits", "Traits"],
   playstyles: ["playstyles", "play_styles", "PlayStyles", "Playstyles", "Play Styles", "playstyle"],
   playstylesPlus: ["playstyles_plus", "playstyles_plus_list", "PlayStyles+", "PlayStylesPlus"],
+  // Card version / rarity — present in "cards" datasets that include special
+  // items (TOTW, promos, icons, heroes). Absent in plain "players" datasets.
+  cardType: ["card_type", "cardType", "version", "Version", "rarity", "Rarity", "revision", "Revision", "rating_type", "card_name", "Card"],
 };
 
 const KNOWN_POSITIONS = new Set<FcPlayerPosition>([
@@ -114,10 +117,22 @@ function adaptRecord(record: SourceRecord): FcPlayer | null {
   );
   if (!position) return null;
 
+  // Card type/version. Default to gold-rare for plain player datasets that
+  // don't carry a version. Normalize to a slug ("totw", "fut-birthday").
+  const cardTypeRaw = pick(record, lowerIndex, FIELD_ALIASES.cardType);
+  const cardType = cardTypeRaw
+    ? String(cardTypeRaw).toLowerCase().trim().replace(/\s+/g, "-")
+    : "gold-rare";
+
+  const overall = asInt(pick(record, lowerIndex, FIELD_ALIASES.overall));
+
+  // External id must be unique PER CARD, not per player — a player can have
+  // many cards. When the source gives an id we trust it; otherwise compose
+  // name + card type + overall so e.g. base Salah and TOTW Salah don't collide.
   const externalIdRaw = pick(record, lowerIndex, FIELD_ALIASES.externalId);
   const externalId = externalIdRaw
     ? String(externalIdRaw)
-    : `${normalizeName(name)}-${position}`.replace(/\s+/g, "-");
+    : `${normalizeName(name)}-${cardType}-${overall}-${position}`.replace(/\s+/g, "-");
 
   const playstyles = parsePlaystyles(pick(record, lowerIndex, FIELD_ALIASES.playstyles));
   const playstylesPlus = parsePlaystyles(
@@ -134,10 +149,10 @@ function adaptRecord(record: SourceRecord): FcPlayer | null {
     externalId,
     name,
     normalizedName: normalizeName(name),
-    cardType: "gold-rare",
+    cardType,
     position,
     altPositions,
-    overall: asInt(pick(record, lowerIndex, FIELD_ALIASES.overall)),
+    overall,
     pace: asInt(pick(record, lowerIndex, FIELD_ALIASES.pace)),
     shooting: asInt(pick(record, lowerIndex, FIELD_ALIASES.shooting)),
     passing: asInt(pick(record, lowerIndex, FIELD_ALIASES.passing)),
