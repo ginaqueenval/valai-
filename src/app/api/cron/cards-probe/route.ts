@@ -72,10 +72,64 @@ export async function GET(request: Request) {
   const name = new URL(request.url).searchParams.get("name") || "Salah";
   const q = encodeURIComponent(name);
 
-  // FUT.GG is reachable (it returned its own 404 page, not a Cloudflare block),
-  // so the only question is the correct API path. Futwiz/Futbin are Cloudflare-
-  // blocked (403 "Just a moment"), so we focus on discovering FUT.GG's real
-  // endpoints by trying several plausible shapes at once.
+  // The only reachable FUT.GG surface is the HTML page (200), which is a
+  // TanStack JS app that loads its data from some backend URL. Fetch that page
+  // and mine it for the real data endpoints: absolute API URLs, the page's
+  // embedded JSON payload keys, and any player-item id references. That tells
+  // us where the cards actually come from without more blind guessing.
+  let pageStatus: number | undefined;
+  let apiUrls: string[] = [];
+  let dataUrls: string[] = [];
+  let snippet = "";
+  let error: string | undefined;
+
+  try {
+    const res = await fetch(`https://www.fut.gg/players/?search=${q}`, {
+      headers: {
+        "User-Agent": BROWSER_UA,
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+    pageStatus = res.status;
+    const html = await res.text();
+
+    // Any absolute URL that looks like an API/data/cdn endpoint.
+    const urlRe = /https?:\/\/[^\s"'<>\\)]+/g;
+    const all = Array.from(new Set(html.match(urlRe) ?? []));
+    apiUrls = all
+      .filter((u) => /(\/api\/|api\.fut\.gg|game-assets|player-item|\/players?\/)/i.test(u))
+      .slice(0, 40);
+    // Relative paths referenced for data fetching (TanStack loaders, etc.).
+    const relRe = /["'](\/(?:api|_build|fut|game-assets)[^"']{3,120})["']/g;
+    const rels = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = relRe.exec(html)) !== null) rels.add(m[1]);
+    dataUrls = Array.from(rels).slice(0, 40);
+
+    // Find the chunk around the player's name so we can see how cards are
+    // represented inline (if the page server-rendered any of them).
+    const idx = html.toLowerCase().indexOf(name.toLowerCase());
+    snippet = idx >= 0 ? html.slice(idx - 80, idx + 320) : html.slice(0, 400);
+  } catch (err) {
+    error = (err as Error).message;
+  }
+
+  return NextResponse.json({
+    probedAt: new Date().toISOString(),
+    name,
+    pageStatus,
+    apiUrls,
+    dataUrls,
+    snippet,
+    error,
+  });
+}
+
+// Legacy multi-path probe kept for reference under ?mode=paths.
+export async function POST(request: Request) {
+  const name = new URL(request.url).searchParams.get("name") || "Salah";
+  const q = encodeURIComponent(name);
   const results = await Promise.all([
     probe("futgg_v1_players", `https://www.fut.gg/api/fut/players/?search=${q}`),
     probe("futgg_v1_search", `https://www.fut.gg/api/fut/search/?query=${q}`),
