@@ -14,7 +14,13 @@
 import { GoogleGenAI } from "@google/genai";
 
 export type ClassifierEntity = {
-  type: "player_profile" | "playstyle" | "tactic" | "formation" | "position";
+  type:
+    | "player_name"
+    | "player_profile"
+    | "playstyle"
+    | "tactic"
+    | "formation"
+    | "position";
   value: string;
   normalized_value: string;
 };
@@ -48,13 +54,17 @@ For each item, output:
    praises, complains about, or warns against. Skip if not relevant.
 
 ENTITY TYPES:
+- "player_name" — a SPECIFIC real footballer named in the text, as a card
+    in the game. Examples: "Mbappé", "Saliba", "Rodri", "Theo Hernandez".
+    Use the player's common name. Only emit this when an actual person is
+    named — never for generic descriptions.
 - "player_profile" — a TYPE of player, NOT a specific name. Examples:
     "fast defensive RB with stamina",
     "clinical ST with pace and finishing",
     "ball-playing CB with composure",
     "box-to-box CM with passing".
-  If the user only names a specific player (e.g. "Mbappé"), still
-  generalize them into a profile.
+  If the text names a specific player (e.g. "Mbappé"), emit BOTH a
+  "player_name" entity for them AND a generalized "player_profile".
 - "playstyle" — e.g. "high press", "possession", "counter attack",
   "drop back", "tiki-taka".
 - "tactic" — instruction-level: "stay back while attacking",
@@ -144,6 +154,7 @@ async function classifyBatch(
     for (const e of raw.entities ?? []) {
       if (!e?.type || !e?.value) continue;
       if (
+        e.type !== "player_name" &&
         e.type !== "player_profile" &&
         e.type !== "playstyle" &&
         e.type !== "tactic" &&

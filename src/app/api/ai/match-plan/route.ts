@@ -18,13 +18,14 @@ import {
   stripCodeFences,
 } from "@/lib/ai/geminiClient";
 import type {
+  CommunitySignal,
   MatchPlan,
   MatchPlanRequest,
   Squad,
   SwapCandidate,
   SwapSuggestion,
 } from "@/lib/ai/matchPlanSchema";
-import { searchByProfile } from "@/lib/playerDb/queries";
+import { searchByProfile, findPlayerByName } from "@/lib/playerDb/queries";
 import type { FcPlayer, FcPlayerPosition } from "@/lib/playerDb/types";
 import { lookupProfileSignal } from "@/lib/community/lookup";
 
@@ -72,6 +73,58 @@ function toSwapCandidate(p: FcPlayer): SwapCandidate {
   };
   if (p.imageUrl) c.imageUrl = p.imageUrl;
   return c;
+}
+
+/** Per-squad-player insight: real card stats from fc_players (if we have the
+ *  player) plus name-based community sentiment from the ingest pipeline. This
+ *  lets the UI / chat explain a player using both hard data and what the
+ *  community says about that SPECIFIC player. Both halves fail soft. */
+type PlayerInsight = {
+  name: string;
+  position?: string;
+  card?: SwapCandidate;
+  communitySignal?: CommunitySignal;
+};
+
+async function buildPlayerInsights(squad: Squad): Promise<PlayerInsight[]> {
+  const named = squad.players.filter(
+    (p) => typeof p.name === "string" && p.name.trim().length > 1
+  );
+
+  const tasks = named.map(async (p): Promise<PlayerInsight | null> => {
+    const [cardResult, signalResult] = await Promise.allSettled([
+      findPlayerByName(p.name),
+      lookupProfileSignal(p.name, "player_name"),
+    ]);
+
+    const card =
+      cardResult.status === "fulfilled" && cardResult.value
+        ? toSwapCandidate(cardResult.value)
+        : undefined;
+    const sig =
+      signalResult.status === "fulfilled" && signalResult.value
+        ? signalResult.value
+        : undefined;
+
+    // Skip players we know nothing extra about — keeps the payload lean.
+    if (!card && !sig) return null;
+
+    const insight: PlayerInsight = { name: p.name, position: p.position };
+    if (card) insight.card = card;
+    if (sig) {
+      insight.communitySignal = {
+        positiveCount: sig.positiveCount,
+        negativeCount: sig.negativeCount,
+        bucket: sig.bucket,
+        topQuote: sig.topQuote,
+        matchedTerm: sig.matchedTerm,
+      };
+    }
+    return insight;
+  });
+
+  const results = await Promise.all(tasks);
+  return results.filter((r): r is PlayerInsight => r !== null);
 }
 
 /** For each AI-suggested swap, attach two enrichments in parallel:
@@ -216,15 +269,24 @@ export async function POST(request: Request) {
       );
     }
 
-    // Enrich AI's swap suggestions with concrete candidates from fc_players.
-    // If the table is empty or queries fail, suggestions return without
-    // candidates — the plan is still useful.
-    plan.swapSuggestions = await enrichSwapSuggestions(plan.swapSuggestions);
+    // Enrich AI's swap suggestions with concrete candidates from fc_players,
+    // and build per-squad-player insights (real card stats + name-based
+    // community sentiment). Both run in parallel and fail soft — the plan is
+    // still useful if the player DB or signal table is empty.
+    const [enrichedSwaps, playerInsights] = await Promise.all([
+      enrichSwapSuggestions(plan.swapSuggestions),
+      buildPlayerInsights(body.squad).catch((err) => {
+        console.error("buildPlayerInsights failed", err);
+        return [] as PlayerInsight[];
+      }),
+    ]);
+    plan.swapSuggestions = enrichedSwaps;
 
     return NextResponse.json({
       success: true,
       modelUsed,
       plan,
+      playerInsights,
     });
   } catch (error) {
     const { message, status } = friendlyError(error);

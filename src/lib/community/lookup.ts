@@ -29,7 +29,11 @@ function normalize(value: string): string {
 
 export async function lookupProfileSignal(
   profile: string,
-  entityType: "player_profile" | "playstyle" | "tactic" = "player_profile"
+  entityType:
+    | "player_name"
+    | "player_profile"
+    | "playstyle"
+    | "tactic" = "player_profile"
 ): Promise<CommunitySignal | null> {
   const normalized = normalize(profile);
   if (normalized.length === 0) return null;
