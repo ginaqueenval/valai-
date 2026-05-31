@@ -15,6 +15,7 @@
 import { sql } from "@/lib/db/sql";
 import { ensurePlayerDbSchema } from "./schema";
 import type { FcPlayer } from "./types";
+import { adaptDataset, type AdaptResult } from "./datasetAdapter";
 
 export type PlayerDataset = ReadonlyArray<FcPlayer>;
 
@@ -147,4 +148,64 @@ export async function loadCommunityDatasetFromUrl(
 export async function populateFromUrl(url: string): Promise<number> {
   const dataset = await loadCommunityDatasetFromUrl(url);
   return upsertMany(dataset);
+}
+
+export type PopulateReport = {
+  written: number;
+  total: number;
+  kept: number;
+  dropped: number;
+  format: "csv" | "json";
+  sourceColumns: string[];
+  /** A few adapted players, so the operator can eyeball the mapping. */
+  sample: Array<Pick<FcPlayer, "name" | "position" | "overall" | "club">>;
+};
+
+/**
+ * Fetch a RAW community dataset (CSV or JSON) from a URL, adapt it through
+ * datasetAdapter (resolving column names defensively), keep players with
+ * overall >= minOverall, and upsert them.
+ *
+ * Returns a diagnostic report including the source's column names and a small
+ * sample — so a run that imports 0 players is debuggable without server logs.
+ */
+export async function populateFromDatasetUrl(
+  url: string,
+  minOverall = 0
+): Promise<PopulateReport> {
+  const res = await fetch(url, {
+    headers: {
+      // GitHub raw + most CDNs are happy with a plain browser-ish UA.
+      "User-Agent": "valai-fc-community-pipeline/1.0",
+      Accept: "text/csv, application/json, text/plain, */*",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Dataset fetch failed: ${res.status} ${res.statusText}`);
+  }
+  const text = await res.text();
+
+  let adapted: AdaptResult;
+  try {
+    adapted = adaptDataset(text, minOverall);
+  } catch (err) {
+    throw new Error(`Dataset parse failed: ${(err as Error).message}`);
+  }
+
+  const written = await upsertMany(adapted.players);
+
+  return {
+    written,
+    total: adapted.total,
+    kept: adapted.kept,
+    dropped: adapted.dropped,
+    format: adapted.format,
+    sourceColumns: adapted.sourceColumns,
+    sample: adapted.players.slice(0, 5).map((p) => ({
+      name: p.name,
+      position: p.position,
+      overall: p.overall,
+      club: p.club,
+    })),
+  };
 }
