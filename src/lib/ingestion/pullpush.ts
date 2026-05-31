@@ -22,10 +22,12 @@ const PULLPUSH_BASE_URL =
 
 // PullPush caps `size` at 100 per request.
 const PAGE_SIZE = 100;
-// How far back each daily run looks. We use a small overlap (2 days) so a
-// missed/late-arriving comment from yesterday is still picked up — the
-// ON CONFLICT upsert in the pipeline dedupes by external_id.
-const DEFAULT_LOOKBACK_DAYS = 2;
+// How far back each run looks, in days. PullPush is an ARCHIVE and indexes
+// with a lag — its newest available comments can be several days old, so a
+// tight 2-day window returned 0. 0 (or negative) means "no time filter, just
+// give me the newest indexed items". The pipeline's ON CONFLICT upsert dedupes
+// by external_id, so re-seeing the same newest items across days is harmless.
+const DEFAULT_LOOKBACK_DAYS = 0;
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -116,7 +118,7 @@ function extractImageUrl(rec: PullPushRecord): string | null {
 function buildUrl(
   kind: "comment" | "submission",
   subreddit: string,
-  afterEpoch: number,
+  afterEpoch: number | null,
   size: number
 ): string {
   const params = new URLSearchParams({
@@ -124,9 +126,11 @@ function buildUrl(
     size: String(size),
     sort: "desc",
     sort_type: "created_utc",
-    // PullPush accepts epoch seconds for `after`.
-    after: String(afterEpoch),
   });
+  // Only constrain by time when an `after` is given. Omitting it makes
+  // PullPush return its newest indexed items, which is what we want given
+  // its indexing lag.
+  if (afterEpoch !== null) params.set("after", String(afterEpoch));
   return `${PULLPUSH_BASE_URL}/reddit/search/${kind}/?${params}`;
 }
 
@@ -138,7 +142,10 @@ export async function fetchSubredditComments(
   lookbackDays: number = DEFAULT_LOOKBACK_DAYS,
   size: number = PAGE_SIZE
 ): Promise<RedditItem[]> {
-  const afterEpoch = Math.floor(Date.now() / 1000) - lookbackDays * 86400;
+  const afterEpoch =
+    lookbackDays > 0
+      ? Math.floor(Date.now() / 1000) - lookbackDays * 86400
+      : null;
   const url = buildUrl("comment", subreddit, afterEpoch, size);
   const json = (await fetchJson(url)) as PullPushResponse | null;
   const records = json?.data ?? [];
@@ -168,7 +175,10 @@ export async function fetchSubredditSubmissions(
   lookbackDays: number = DEFAULT_LOOKBACK_DAYS,
   size: number = PAGE_SIZE
 ): Promise<RedditItem[]> {
-  const afterEpoch = Math.floor(Date.now() / 1000) - lookbackDays * 86400;
+  const afterEpoch =
+    lookbackDays > 0
+      ? Math.floor(Date.now() / 1000) - lookbackDays * 86400
+      : null;
   const url = buildUrl("submission", subreddit, afterEpoch, size);
   const json = (await fetchJson(url)) as PullPushResponse | null;
   const records = json?.data ?? [];
