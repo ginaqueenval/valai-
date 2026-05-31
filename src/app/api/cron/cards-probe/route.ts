@@ -72,11 +72,19 @@ export async function GET(request: Request) {
   const name = new URL(request.url).searchParams.get("name") || "Salah";
   const q = encodeURIComponent(name);
 
+  // FUT.GG is reachable (it returned its own 404 page, not a Cloudflare block),
+  // so the only question is the correct API path. Futwiz/Futbin are Cloudflare-
+  // blocked (403 "Just a moment"), so we focus on discovering FUT.GG's real
+  // endpoints by trying several plausible shapes at once.
   const results = await Promise.all([
-    probe("futgg_search", `https://www.fut.gg/api/fut/players/26/?search=${q}`),
-    probe("futgg_search_alt", `https://www.fut.gg/api/fut/players/?search=${q}`),
-    probe("futwiz_search", `https://www.futwiz.com/en/search?q=${q}`),
-    probe("futbin_search", `https://www.futbin.com/search?year=26&term=${q}`),
+    probe("futgg_v1_players", `https://www.fut.gg/api/fut/players/?search=${q}`),
+    probe("futgg_v1_search", `https://www.fut.gg/api/fut/search/?query=${q}`),
+    probe("futgg_player_items", `https://www.fut.gg/api/fut/player-item/?search=${q}`),
+    probe("futgg_players_26", `https://www.fut.gg/api/fut/26/players/?search=${q}`),
+    probe("futgg_search_q", `https://www.fut.gg/api/fut/players/?q=${q}`),
+    probe("futgg_autocomplete", `https://www.fut.gg/api/fut/autocomplete/?query=${q}`),
+    probe("futgg_players_search", `https://www.fut.gg/api/players/search/?name=${q}`),
+    probe("futgg_html_players", `https://www.fut.gg/players/?search=${q}`),
   ]);
 
   return NextResponse.json({ probedAt: new Date().toISOString(), name, results });
