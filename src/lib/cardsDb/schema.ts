@@ -70,10 +70,19 @@ CREATE INDEX IF NOT EXISTS idx_card_notes_card ON card_community_notes(card_id);
 
 export async function ensureCardsSchema(): Promise<void> {
   if (initialized) return;
+  // Split into statements, then strip any leading/inline `--` comment lines
+  // from EACH statement. (A statement that merely starts with a comment line
+  // must still run — dropping it would skip the table it defines.)
   const statements = SCHEMA_DDL
     .split(/;\s*\n/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith("--"));
+    .map((s) =>
+      s
+        .split("\n")
+        .filter((line) => !line.trim().startsWith("--"))
+        .join("\n")
+        .trim()
+    )
+    .filter((s) => s.length > 0);
 
   const db = sql();
   for (const stmt of statements) {
