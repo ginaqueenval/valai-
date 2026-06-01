@@ -204,3 +204,21 @@ export async function getCardsForPlayer(name: string): Promise<PlayerCardRow[]> 
     [key]
   )) as PlayerCardRow[];
 }
+
+/** Full stored rows for a player (all columns incl. details JSONB), for
+ *  inspecting exactly what's saved. Fuzzy name match. */
+export async function getFullCardsForPlayer(
+  name: string
+): Promise<Record<string, unknown>[]> {
+  await ensureCardsSchema();
+  const db = sql();
+  const key = normalizeKey(name);
+  if (!key) return [];
+
+  return (await db.query(
+    `SELECT * FROM player_cards
+      WHERE similarity(player_key, $1) > 0.4
+      ORDER BY rating DESC`,
+    [key]
+  )) as Record<string, unknown>[];
+}
