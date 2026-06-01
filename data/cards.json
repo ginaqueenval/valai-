@@ -1,0 +1,38 @@
+{
+  "_comment": "Manual FC26 card feed. Each entry is one card VERSION of a player. Loaded via /api/cron/load-cards?url=<raw url of this file>. Idempotent: re-loading updates by card_id. Add new cards/versions here over time.",
+  "cards": [
+    {
+      "playerName": "Alexia Putellas",
+      "version": "Base",
+      "rating": 91,
+      "position": "CM",
+      "altPositions": ["CDM", "CAM"],
+      "pace": 82,
+      "shooting": 89,
+      "passing": 90,
+      "dribbling": 91,
+      "defending": 72,
+      "physical": 80,
+      "skillMoves": 5,
+      "weakFoot": 5,
+      "preferredFoot": "Left",
+      "playstylesPlus": ["First Touch"],
+      "playstyles": ["Finesse Shot", "Game Changer", "Incisive Pass", "Tiki Taka", "Inventive", "Technical"],
+      "nation": "Spain",
+      "league": "Liga F",
+      "club": "FC Barcelona",
+      "imageUrl": "https://ratings-images-prod.pulse.ea.com/FC26/components/items/227203_en.webp",
+      "details": {
+        "accelerate": "Controlled",
+        "pace": { "acceleration": 81, "sprintSpeed": 82 },
+        "shooting": { "attPos": 91, "finishing": 91, "shotPower": 86, "longShots": 88, "volleys": 87, "penalties": 89 },
+        "passing": { "vision": 92, "crossing": 88, "fkAccuracy": 85, "shortPassing": 91, "longPassing": 90, "curve": 89 },
+        "dribbling": { "agility": 90, "balance": 89, "reactions": 91, "ballControl": 92, "dribbling": 91, "composure": 92 },
+        "defending": { "interceptions": 78, "headingAccuracy": 74, "defAwareness": 60, "standingTackle": 81, "slidingTackle": 64 },
+        "physical": { "jumping": 85, "stamina": 85, "strength": 81, "aggression": 70 },
+        "chemistryStyles": { "Hunter": 47, "Engine": 16, "Shadow": 15 },
+        "priceCoins": 17000
+      }
+    }
+  ]
+}

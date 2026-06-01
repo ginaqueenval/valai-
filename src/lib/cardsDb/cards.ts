@@ -29,6 +29,9 @@ export type CardInput = {
   league?: string;
   club?: string;
   imageUrl?: string;
+  /** Detailed sub-stats (acceleration, vision, composure…), AcceleRATE,
+   *  chemistry-style popularity, price, etc. Stored as-is for completeness. */
+  details?: Record<string, unknown>;
 };
 
 export function normalizeKey(value: string): string {
@@ -85,9 +88,10 @@ export async function upsertCards(cards: CardInput[]): Promise<UpsertResult> {
            (card_id, player_key, player_name, card_version, is_base, rating,
             position, alt_positions, pace, shooting, passing, dribbling,
             defending, physical, skill_moves, weak_foot, preferred_foot,
-            playstyles, playstyles_plus, nation, league, club, image_url, updated_at)
+            playstyles, playstyles_plus, nation, league, club, image_url,
+            details, updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-                 $18,$19,$20,$21,$22,$23, NOW())
+                 $18,$19,$20,$21,$22,$23,$24, NOW())
          ON CONFLICT (card_id) DO UPDATE SET
             rating = EXCLUDED.rating,
             position = EXCLUDED.position,
@@ -101,6 +105,7 @@ export async function upsertCards(cards: CardInput[]): Promise<UpsertResult> {
             playstyles_plus = EXCLUDED.playstyles_plus,
             nation = EXCLUDED.nation, league = EXCLUDED.league,
             club = EXCLUDED.club, image_url = EXCLUDED.image_url,
+            details = EXCLUDED.details,
             updated_at = NOW()`,
         [
           id,
@@ -126,6 +131,7 @@ export async function upsertCards(cards: CardInput[]): Promise<UpsertResult> {
           c.league ?? "",
           c.club ?? "",
           c.imageUrl ?? null,
+          c.details ? JSON.stringify(c.details) : null,
         ]
       );
       written += 1;
