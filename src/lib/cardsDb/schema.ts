@@ -39,9 +39,12 @@ CREATE TABLE IF NOT EXISTS player_cards (
   league TEXT NOT NULL DEFAULT '',
   club TEXT NOT NULL DEFAULT '',
   image_url TEXT,
+  details JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE player_cards ADD COLUMN IF NOT EXISTS details JSONB;
 
 CREATE INDEX IF NOT EXISTS idx_player_cards_key ON player_cards(player_key);
 CREATE INDEX IF NOT EXISTS idx_player_cards_version ON player_cards(card_version);
