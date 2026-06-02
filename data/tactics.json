@@ -58,6 +58,65 @@
         "buildUpDescription": "Players come short to support the ball carrier rather than make forward runs. Cautious, keeps defensive shape longer.",
         "defDescription": "Riskier defending, situational pressure, high line that tends not to track runs."
       }
+    },
+    {
+      "name": "Levi De Weerd's FC Pro Open TOP 4 Custom Tactics!",
+      "author": "Team Gullit Levi De Weerd",
+      "gameCode": "aZ&ebmawkmXc",
+      "formation": "4-5-1 (Flat)",
+      "buildUpStyle": "Balanced",
+      "defensiveApproach": "High",
+      "lineHeight": 70,
+      "strengths": ["Players Rarely Tire", "Threatening Out Wide", "Strong Defensive Focus"],
+      "weaknesses": ["Susceptible to Counters"],
+      "playerRoles": [
+        { "position": "ST", "focus": "++" },
+        { "position": "LM", "focus": "++" },
+        { "position": "CM", "focus": "++" },
+        { "position": "CM", "focus": "++" },
+        { "position": "CM", "focus": "" },
+        { "position": "RM", "focus": "++" },
+        { "position": "LB", "focus": "++" },
+        { "position": "CB", "focus": "++" },
+        { "position": "CB", "focus": "++" },
+        { "position": "RB", "focus": "++" },
+        { "position": "GK", "focus": "+" }
+      ],
+      "source": "futwiz",
+      "details": {
+        "buildUpDescription": "Players will vary between forward runs and coming short. Steady transition.",
+        "defDescription": "Riskier defending, situational pressure, high line that tends not to track runs.",
+        "note": "Weakness list may be partially cut off in the source screenshot."
+      }
+    },
+    {
+      "name": "DaniPitbull's FC Pro Open TOP 4 Custom Tactics",
+      "author": "Danipitbull",
+      "gameCode": "6#UkA?6AEWmb",
+      "formation": "4-4-1-1",
+      "buildUpStyle": "Short Passing",
+      "defensiveApproach": "High",
+      "lineHeight": 60,
+      "strengths": ["Players Rarely Tire", "Threatening Out Wide", "Defensively Solid"],
+      "weaknesses": ["Dependency on Possession", "Lack of Attacking Options", "Predictable in Possession"],
+      "playerRoles": [
+        { "position": "ST", "focus": "++" },
+        { "position": "CAM", "focus": "++" },
+        { "position": "LM", "focus": "++" },
+        { "position": "CM", "focus": "++" },
+        { "position": "CM", "focus": "+" },
+        { "position": "RM", "focus": "++" },
+        { "position": "LB", "focus": "++" },
+        { "position": "CB", "focus": "++" },
+        { "position": "CB", "focus": "++" },
+        { "position": "RB", "focus": "++" },
+        { "position": "GK", "focus": "++" }
+      ],
+      "source": "futwiz",
+      "details": {
+        "buildUpDescription": "Players come short to support the ball carrier rather than make forward runs. Cautious, keeps defensive shape longer.",
+        "defDescription": "Riskier defending, situational pressure, high line that tends not to track runs."
+      }
     }
   ]
 }

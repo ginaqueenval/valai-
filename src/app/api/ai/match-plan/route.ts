@@ -28,6 +28,7 @@ import type {
 import { searchByProfile, findPlayerByName } from "@/lib/playerDb/queries";
 import type { FcPlayer, FcPlayerPosition } from "@/lib/playerDb/types";
 import { lookupProfileSignal } from "@/lib/community/lookup";
+import { getProTacticsForFormation } from "@/lib/tacticsDb/tactics";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -216,7 +217,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const userText = buildMatchPlanUserText({
+  let userText = buildMatchPlanUserText({
     squadJson: JSON.stringify(body.squad, null, 2),
     opponentSquadJson: body.opponentSquad
       ? JSON.stringify(body.opponentSquad, null, 2)
@@ -226,6 +227,24 @@ export async function POST(request: Request) {
     styleOverride: body.styleOverride,
     language: body.language,
   });
+
+  // Surface real pro-player tactics that use a formation matching this squad,
+  // so the plan can say "pro X runs this shape too". Fails soft.
+  try {
+    const proTactics = await getProTacticsForFormation(body.squad.formation, 4);
+    if (proTactics.length > 0) {
+      userText +=
+        `\n\nPRO REFERENCE TACTICS (real FC Pro players using a formation like ` +
+        `this squad's "${body.squad.formation}"):\n` +
+        proTactics.map((t) => `- ${t}`).join("\n") +
+        `\n\nIf one of these pro setups fits this squad, mention it by the pro's ` +
+        `name in your reasoning or matchupHints (e.g. "pro X runs this shape with ` +
+        `a high line"). Only cite a pro tactic when it genuinely matches; never ` +
+        `invent pro names or tactics that are not listed above.`;
+    }
+  } catch (err) {
+    console.error("getProTacticsForFormation failed", err);
+  }
 
   try {
     const { response, modelUsed } = await generateTextWithRetry({
