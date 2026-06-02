@@ -1,0 +1,63 @@
+{
+  "_comment": "Pro player tactics (FC Pro Open etc.), transcribed from futwiz. Loaded via /api/cron/load-tactics?url=<raw url>. Idempotent by author+name. Add more over time.",
+  "tactics": [
+    {
+      "name": "Nassada's 4-4-2 FC Pro Open Week 8 Tactics",
+      "author": "Nassada",
+      "gameCode": "G5gQPKGMQCD#",
+      "formation": "4-4-2 (Flat)",
+      "buildUpStyle": "Balanced",
+      "defensiveApproach": "High",
+      "lineHeight": 70,
+      "strengths": ["Dynamic Wing Play", "Team Hardly Breaks A Sweat", "Win the Ball Back Quickly"],
+      "weaknesses": ["Unimaginative Build-Up Play", "Isolated Frontline", "Compressed Team"],
+      "playerRoles": [
+        { "position": "ST", "focus": "++" },
+        { "position": "ST", "focus": "++" },
+        { "position": "LM", "focus": "++" },
+        { "position": "CM", "focus": "+" },
+        { "position": "CM", "focus": "" },
+        { "position": "RM", "focus": "++" },
+        { "position": "LB", "focus": "++" },
+        { "position": "CB", "focus": "++" },
+        { "position": "CB", "focus": "++" },
+        { "position": "RB", "focus": "+" },
+        { "position": "GK", "focus": "" }
+      ],
+      "source": "futwiz",
+      "details": {
+        "buildUpDescription": "Players will vary between forward runs and coming short. Steady transition.",
+        "defDescription": "Riskier defending, situational pressure, high line that tends not to track runs."
+      }
+    },
+    {
+      "name": "Anders Vejrgang's FC Pro Open Champion Tactics!",
+      "author": "Anders Vejrgang",
+      "gameCode": "?5Y#HC?E#6rf",
+      "formation": "4-4-2 (Flat)",
+      "buildUpStyle": "Short Passing",
+      "defensiveApproach": "High",
+      "lineHeight": 60,
+      "strengths": ["Dynamic Wing Play", "Team Hardly Breaks A Sweat", "Win the Ball Back Quickly"],
+      "weaknesses": ["Isolated Frontline", "Compressed Team", "Inconsistent Build-Up"],
+      "playerRoles": [
+        { "position": "ST", "focus": "++" },
+        { "position": "ST", "focus": "++" },
+        { "position": "LM", "focus": "++" },
+        { "position": "CM", "focus": "++" },
+        { "position": "CM", "focus": "+" },
+        { "position": "RM", "focus": "+" },
+        { "position": "LB", "focus": "" },
+        { "position": "CB", "focus": "++" },
+        { "position": "CB", "focus": "++" },
+        { "position": "RB", "focus": "++" },
+        { "position": "GK", "focus": "++" }
+      ],
+      "source": "futwiz",
+      "details": {
+        "buildUpDescription": "Players come short to support the ball carrier rather than make forward runs. Cautious, keeps defensive shape longer.",
+        "defDescription": "Riskier defending, situational pressure, high line that tends not to track runs."
+      }
+    }
+  ]
+}
