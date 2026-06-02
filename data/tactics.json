@@ -175,6 +175,35 @@
         "buildUpDescription": "Players will vary between forward runs and coming short. Steady transition.",
         "defDescription": "Riskier defending, situational pressure, high line that tends not to track runs."
       }
+    },
+    {
+      "name": "OCE CASH UP #2 CHAMPION TACTICS",
+      "author": "futwiz_mark11",
+      "gameCode": "VJv@bLZbfRSX",
+      "formation": "4-4-1-1",
+      "buildUpStyle": "Balanced",
+      "defensiveApproach": "High",
+      "lineHeight": 70,
+      "strengths": ["Players Rarely Tire", "Threatening Out Wide", "Defensively Solid"],
+      "weaknesses": ["Dependency on Possession", "Unimaginative Build-Up Play", "Lack of Attacking Options"],
+      "playerRoles": [
+        { "position": "ST", "focus": "" },
+        { "position": "CAM", "focus": "++" },
+        { "position": "LM", "focus": "++" },
+        { "position": "CM", "focus": "" },
+        { "position": "CM", "focus": "+" },
+        { "position": "RM", "focus": "++" },
+        { "position": "LB", "focus": "++" },
+        { "position": "CB", "focus": "++" },
+        { "position": "CB", "focus": "+" },
+        { "position": "RB", "focus": "++" },
+        { "position": "GK", "focus": "" }
+      ],
+      "source": "futwiz",
+      "details": {
+        "buildUpDescription": "Players will vary between forward runs and coming short. Steady transition.",
+        "defDescription": "Riskier defending, situational pressure, high line that tends not to track runs."
+      }
     }
   ]
 }
