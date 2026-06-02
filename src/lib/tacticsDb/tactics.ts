@@ -140,3 +140,60 @@ export async function getTactics(formation?: string, limit = 20): Promise<Record
     [limit]
   )) as Record<string, unknown>[];
 }
+
+type TacticRow = {
+  name: string;
+  author: string;
+  formation: string;
+  build_up_style: string | null;
+  defensive_approach: string | null;
+  line_height: number | null;
+  strengths: string[] | null;
+  weaknesses: string[] | null;
+};
+
+/** Just the digit signature of a formation, e.g. "4-4-2 (Flat)" -> "442". */
+function formationSignature(formation: string): string {
+  return (formation.match(/\d/g) ?? []).join("");
+}
+
+/** Pro tactics whose formation matches the given shape (by digit signature),
+ *  for surfacing "the pros run this too" in a Match Plan. Returns compact,
+ *  prompt-ready summaries. */
+export async function getProTacticsForFormation(
+  formation: string,
+  limit = 4
+): Promise<string[]> {
+  if (!formation) return [];
+  await ensureTacticsSchema();
+  const db = sql();
+  const sig = formationSignature(formation);
+  if (!sig) return [];
+
+  const rows = (await db.query(
+    `SELECT name, author, formation, build_up_style, defensive_approach,
+            line_height, strengths, weaknesses
+       FROM pro_tactics
+      ORDER BY updated_at DESC`
+  )) as TacticRow[];
+
+  return rows
+    .filter((r) => formationSignature(r.formation) === sig)
+    .slice(0, limit)
+    .map((r) => {
+      const parts = [
+        `${r.author || "Pro"} runs ${r.formation}`,
+        r.build_up_style ? `build-up: ${r.build_up_style}` : "",
+        r.defensive_approach ? `def: ${r.defensive_approach}` : "",
+        typeof r.line_height === "number" ? `line height: ${r.line_height}` : "",
+      ].filter(Boolean);
+      let line = parts.join(", ");
+      if (r.strengths && r.strengths.length > 0) {
+        line += `. Strengths: ${r.strengths.join(", ")}`;
+      }
+      if (r.weaknesses && r.weaknesses.length > 0) {
+        line += `. Watch: ${r.weaknesses.join(", ")}`;
+      }
+      return line;
+    });
+}
